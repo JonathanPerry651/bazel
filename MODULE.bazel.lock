@@ -1290,7 +1290,7 @@
     "@@rules_jvm_external~//:extensions.bzl%maven": {
       "general": {
         "bzlTransitiveDigest": "6HjpYwTb4aw3ujkkpdKEvg9geToiH1ebaT6hmsvF5xw=",
-        "usagesDigest": "GDnun3+UYCfO0VT0ashmwTVdZp5HrtUpu+S9LHigYpQ=",
+        "usagesDigest": "X5mGQOtIDRpB0V4AE3KZZswFkoN/2xNCFVwiZt8kUVU=",
         "recordedFileInputs": {
           "@@//src/tools/android/maven_android_install.json": "09bff3e33d291336046f7c9201630fb5e014f0e60b78b6f09b84e4f5f73ed04f",
           "@@rules_jvm_external~//rules_jvm_external_deps_install.json": "cafb5d2d8119391eb2b322ce3840d3352ea82d496bdb8cbd4b6779ec4d044dda",
@@ -1969,6 +1969,7 @@
                 "{ \"group\": \"io.grpc\", \"artifact\": \"grpc-protobuf\", \"version\": \"1.48.1\" }",
                 "{ \"group\": \"io.grpc\", \"artifact\": \"grpc-protobuf-lite\", \"version\": \"1.48.1\" }",
                 "{ \"group\": \"io.grpc\", \"artifact\": \"grpc-stub\", \"version\": \"1.48.1\" }",
+                "{ \"group\": \"io.grpc\", \"artifact\": \"grpc-xds\", \"version\": \"1.48.1\" }",
                 "{ \"group\": \"io.netty\", \"artifact\": \"netty-buffer\", \"version\": \"4.1.93.Final\" }",
                 "{ \"group\": \"io.netty\", \"artifact\": \"netty-codec\", \"version\": \"4.1.93.Final\" }",
                 "{ \"group\": \"io.netty\", \"artifact\": \"netty-codec-http\", \"version\": \"4.1.93.Final\" }",
@@ -4626,6 +4627,7 @@
                 "{ \"group\": \"io.grpc\", \"artifact\": \"grpc-protobuf\", \"version\": \"1.48.1\" }",
                 "{ \"group\": \"io.grpc\", \"artifact\": \"grpc-protobuf-lite\", \"version\": \"1.48.1\" }",
                 "{ \"group\": \"io.grpc\", \"artifact\": \"grpc-stub\", \"version\": \"1.48.1\" }",
+                "{ \"group\": \"io.grpc\", \"artifact\": \"grpc-xds\", \"version\": \"1.48.1\" }",
                 "{ \"group\": \"io.netty\", \"artifact\": \"netty-buffer\", \"version\": \"4.1.93.Final\" }",
                 "{ \"group\": \"io.netty\", \"artifact\": \"netty-codec\", \"version\": \"4.1.93.Final\" }",
                 "{ \"group\": \"io.netty\", \"artifact\": \"netty-codec-http\", \"version\": \"4.1.93.Final\" }",
