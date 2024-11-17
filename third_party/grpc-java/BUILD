@@ -65,6 +65,7 @@ java_library(
         "@maven//:io_grpc_grpc_protobuf",
         "@maven//:io_grpc_grpc_protobuf_lite",
         "@maven//:io_grpc_grpc_stub",
+	"@maven//:io_grpc_grpc_xds",
     ],
 )
 
