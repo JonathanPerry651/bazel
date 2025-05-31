@@ -29,8 +29,12 @@ import com.google.devtools.build.lib.runtime.CommandLinePathFactory;
 import com.google.devtools.build.lib.vfs.FileSystem;
 import com.google.devtools.build.lib.vfs.Path;
 import io.grpc.CallCredentials;
+import io.grpc.ChannelCredentials;
 import io.grpc.ClientInterceptor;
+import io.grpc.Grpc;
+import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NegotiationType;
@@ -61,6 +65,22 @@ import javax.annotation.Nullable;
 /** Utility methods for using {@link AuthAndTLSOptions} with Google Cloud. */
 public final class GoogleAuthUtils {
 
+  private static ManagedChannel xdsChannel(String target, @Nullable List<ClientInterceptor> interceptors) {
+    try {
+      ChannelCredentials creds = (ChannelCredentials) Class.forName("io.grpc.xds.XdsChannelCredentials")
+                      .getDeclaredMethod("create", ChannelCredentials.class)
+                              .invoke(null, InsecureChannelCredentials.create());
+
+      ManagedChannelBuilder<?> b = Grpc.newChannelBuilder(target, creds);
+      if(interceptors != null)
+        b.intercept(interceptors);
+
+      return b.build();
+    } catch(Exception e) {
+      throw new RuntimeException("Failed to create xds channel", e);
+    }
+  }
+
   /**
    * Create a new gRPC {@link ManagedChannel}.
    *
@@ -75,6 +95,10 @@ public final class GoogleAuthUtils {
       throws IOException {
     Preconditions.checkNotNull(target);
     Preconditions.checkNotNull(options);
+
+    if(target.startsWith("xds:")) {
+      return xdsChannel(target, interceptors);
+    }
 
     SslContext sslContext =
         isTlsEnabled(target)
