@@ -641,3 +641,8 @@ java_binary(
     env = {"LC_CTYPE": "C.UTF-8"},
     main_class = "CheckSunJnuEncoding",
 )
+
+java_binary(
+    name = "packaged_xds",
+    runtime_deps  = ["@grpc-java//xds"]
+)
