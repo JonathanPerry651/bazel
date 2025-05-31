@@ -92,6 +92,7 @@ class StartupOptions {
   // just before the Blaze server startup flags.
   virtual void AddJVMArgumentSuffix(const blaze_util::Path &real_install_dir,
                                     const std::string &jar_path,
+                                    const std::string &extra_classpath,
                                     std::vector<std::string> *result) const;
 
   // Adds JVM tuning flags for Blaze.
@@ -170,6 +171,8 @@ class StartupOptions {
   bool autodetect_server_javabase;
 
   std::vector<std::string> host_jvm_args;
+
+  std::string extra_classpath;
 
   bool batch;
 

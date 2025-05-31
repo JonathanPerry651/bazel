@@ -156,6 +156,7 @@ StartupOptions::StartupOptions(const string &product_name,
   RegisterUnaryStartupFlag("server_jvm_out");
   RegisterUnaryStartupFlag("failure_detail_out");
   RegisterUnaryStartupFlag("experimental_cgroup_parent");
+  RegisterUnaryStartupFlag("extra_classpath");
 }
 
 StartupOptions::~StartupOptions() {}
@@ -279,6 +280,9 @@ blaze_exit_code::ExitCode StartupOptions::ProcessArg(const string &argstr,
              nullptr) {
     host_jvm_args.push_back(value);
     option_sources["host_jvm_args"] = rcfile;  // NB: This is incorrect
+  } else if ((value = GetUnaryOption(arg, next_arg, "--extra_classpath"))) {
+       extra_classpath = value;
+       option_sources["extra_classpath"] = rcfile;
   } else if ((value = GetUnaryOption(arg, next_arg, "--io_nice_level")) !=
              nullptr) {
     if (!blaze_util::safe_strto32(value, &io_nice_level) || io_nice_level > 7) {
@@ -568,9 +572,19 @@ void StartupOptions::AddJVMArgumentPrefix(const blaze_util::Path &javabase,
 
 void StartupOptions::AddJVMArgumentSuffix(
     const blaze_util::Path &real_install_dir, const string &jar_path,
-    std::vector<string> *result) const {
-  result->push_back("-jar");
-  result->push_back(real_install_dir.GetRelative(jar_path).AsJvmArgument());
+    const string &extra_classpath, std::vector<string> *result) const {
+  if (extra_classpath.empty()) {
+    result->push_back("-jar");
+    result->push_back(real_install_dir.GetRelative(jar_path).AsJvmArgument());
+  } else {
+    string classpath = real_install_dir.GetRelative(jar_path).AsJvmArgument() +
+                       ":" + extra_classpath;
+    result->push_back("--add-exports");
+    result->push_back("java.base/jdk.internal.misc=ALL-UNNAMED");
+    result->push_back("-cp");
+    result->push_back(classpath);
+    result->push_back("com.google.devtools.build.lib.bazel.Bazel");
+  }
 }
 
 blaze_exit_code::ExitCode StartupOptions::AddJVMArguments(

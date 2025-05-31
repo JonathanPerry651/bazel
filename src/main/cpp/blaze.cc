@@ -457,6 +457,7 @@ static vector<string> GetServerExeArgs(const blaze_util::Path &jvm_path,
   result.insert(result.end(), user_options.begin(), user_options.end());
 
   startup_options.AddJVMArgumentSuffix(real_install_dir, server_jar_path,
+                                       startup_options.extra_classpath,
                                        &result);
 
   // JVM arguments are complete. Now pass in Blaze startup options.
@@ -578,6 +579,9 @@ static vector<string> GetServerExeArgs(const blaze_util::Path &jvm_path,
     }
   }
 
+  if (!startup_options.extra_classpath.empty()) {
+    result.push_back("--extra_classpath=" + startup_options.extra_classpath);
+  }
   // Pass in invocation policy as a startup argument for batch mode only.
   if (startup_options.batch && !startup_options.invocation_policy.empty()) {
     result.push_back("--invocation_policy=" +
