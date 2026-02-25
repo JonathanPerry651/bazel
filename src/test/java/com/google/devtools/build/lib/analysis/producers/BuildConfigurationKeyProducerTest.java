@@ -156,7 +156,7 @@ public class BuildConfigurationKeyProducerTest extends ProducerTestCase {
               "scope": attr.string(
                   doc = "The scope",
                   default = "universal",
-                  values = ["universal", "project"],
+                  values = ["universal", "project", "project_maintained_through_exec"],
               ),
             },
         )
@@ -670,6 +670,202 @@ public class BuildConfigurationKeyProducerTest extends ProducerTestCase {
   }
 
   @Test
+  public void createKey_withScopedBuildOptions_projectFlag_noProjectSclInFlagPackage()
+      throws Exception {
+    // Tests that a project-scoped flag does not crash with NPE when the flag's package has no
+    // PROJECT.scl file. The flag should be treated as not in scope and reset to baseline.
+    createStarlarkFlagRule();
+    scratch.file(
+        "flag/BUILD",
+        """
+        load(":def.bzl", "basic_flag")
+        basic_flag(
+            name = "foo",
+            scope = "project",
+            build_setting_default = "default",
+        )
+        """);
+    // Deliberately NO flag/PROJECT.scl file — simulates a flag in a package without scope info.
+
+    invalidatePackages(false);
+
+    BuildOptions baseOptions = createBuildOptions("--//flag:foo=custom_value");
+    BuildConfigurationKey result =
+        fetch(baseOptions, Label.parseCanonicalUnchecked("//my_project:my_target"));
+    assertThat(result).isNotNull();
+
+    // The flag has project scope but its package has no PROJECT.scl, so scopeDefinition is null.
+    // isInScope() should return false (not in scope) rather than throwing NPE.
+    // Since the flag is not in the baseline, it should be absent from the result options.
+    assertThat(
+            result
+                .getOptions()
+                .getStarlarkOptions()
+                .get(Label.parseCanonicalUnchecked("//flag:foo")))
+        .isNull();
+  }
+
+  @Test
+  public void createKey_withScopedBuildOptions_outOfScopeFlag_maintainedThroughExec()
+      throws Exception {
+    createStarlarkFlagRule();
+    scratch.file(
+        "flag/BUILD",
+        """
+        load(":def.bzl", "basic_flag")
+        basic_flag(
+            name = "foo",
+            scope = "project_maintained_through_exec",
+            build_setting_default = "default",
+        )
+        """);
+    scratch.file(
+        "flag/PROJECT.scl",
+        """
+        load("//test:project_proto.scl", "project_pb2")
+        project = project_pb2.Project.create(
+            project_directories = ["//my_project"],
+        )
+        """);
+
+    scratch.file(
+        "out_of_scope_flag/BUILD",
+        """
+        load("//flag:def.bzl", "basic_flag")
+        basic_flag(
+            name = "baz",
+            scope = "project_maintained_through_exec",
+            build_setting_default = "default",
+        )
+        """);
+    scratch.file(
+        "out_of_scope_flag/PROJECT.scl",
+        """
+        load("//test:project_proto.scl", "project_pb2")
+        project = project_pb2.Project.create(
+            project_directories = ["//out_side_of_my_project"],
+        )
+        """);
+
+    invalidatePackages(false);
+
+    BuildOptions baseOptions =
+        createBuildOptions("--//flag:foo=foo", "--//out_of_scope_flag:baz=baz");
+    BuildConfigurationKey result =
+        fetch(baseOptions, Label.parseCanonicalUnchecked("//my_project:my_target"));
+    assertThat(result).isNotNull();
+    assertThat(
+            result
+                .getOptions()
+                .getStarlarkOptions()
+                .get(Label.parseCanonicalUnchecked("//flag:foo")))
+        .isEqualTo("foo");
+    assertThat(
+            result
+                .getOptions()
+                .getStarlarkOptions()
+                .get(Label.parseCanonicalUnchecked("//out_of_scope_flag:baz")))
+        .isNull();
+
+    // Since the effective BuildOptions does not have //out_of_scope_flag:baz, its scope type should
+    // not exist in the scope type map.
+    ImmutableMap<Label, Scope.ScopeType> expectedScopeTypeMap =
+        ImmutableMap.of(
+            Label.parseCanonicalUnchecked("//flag:foo"),
+            Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC);
+    assertThat(result.getOptions().getScopeTypeMap())
+        .containsExactlyEntriesIn(expectedScopeTypeMap);
+  }
+
+  @Test
+  public void createKey_withScopedBuildOptions_outOfScopeFlag_onLeaveScope() throws Exception {
+    scratch.file(
+        "flag/def.bzl",
+        """
+        def _impl(ctx):
+            return []
+
+        basic_flag = rule(
+            implementation = _impl,
+            build_setting = config.string(flag = True),
+            attrs = {
+              "scope": attr.string(
+                  doc = "The scope",
+                  default = "universal",
+                  values = ["universal", "project", "project_maintained_through_exec"],
+              ),
+              "on_leave_scope": attr.string(),
+            },
+        )
+        """);
+    scratch.file(
+        "flag/BUILD",
+        """
+        load(":def.bzl", "basic_flag")
+        basic_flag(
+            name = "foo",
+            scope = "project_maintained_through_exec",
+            build_setting_default = "default",
+        )
+        """);
+    scratch.file(
+        "flag/PROJECT.scl",
+        """
+        load("//test:project_proto.scl", "project_pb2")
+        project = project_pb2.Project.create(
+            project_directories = ["//my_project"],
+        )
+        """);
+
+    scratch.file(
+        "out_of_scope_flag/BUILD",
+        """
+        load("//flag:def.bzl", "basic_flag")
+        basic_flag(
+            name = "baz",
+            scope = "project_maintained_through_exec",
+            build_setting_default = "default",
+        )
+        """);
+    scratch.file(
+        "out_of_scope_flag/PROJECT.scl",
+        """
+        load("//test:project_proto.scl", "project_pb2")
+        project = project_pb2.Project.create(
+            project_directories = ["//out_side_of_my_project"],
+        )
+        """);
+
+    invalidatePackages(false);
+
+    BuildOptions baseOptions =
+        createBuildOptions("--//flag:foo=foo", "--//out_of_scope_flag:baz=baz");
+    BuildConfigurationKey result =
+        fetch(baseOptions, Label.parseCanonicalUnchecked("//my_project:my_target"));
+    assertThat(result).isNotNull();
+    assertThat(
+            result
+                .getOptions()
+                .getStarlarkOptions()
+                .get(Label.parseCanonicalUnchecked("//flag:foo")))
+        .isEqualTo("foo");
+    // The flag is out of scope and not in the baseline, so it should be absent.
+    assertThat(
+            result
+                .getOptions()
+                .getStarlarkOptions()
+                .get(Label.parseCanonicalUnchecked("//out_of_scope_flag:baz")))
+        .isNull();
+
+    ImmutableMap<Label, Scope.ScopeType> expectedScopeTypeMap =
+        ImmutableMap.of(
+            Label.parseCanonicalUnchecked("//flag:foo"),
+            Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC);
+    assertThat(result.getOptions().getScopeTypeMap())
+        .containsExactlyEntriesIn(expectedScopeTypeMap);
+  }
+
+  @Test
   public void checkFinalizeBuildOptions_haveCorrectScopeTypeMap_noScopingApplied()
       throws Exception {
     createStarlarkFlagRule();
@@ -724,8 +920,8 @@ public class BuildConfigurationKeyProducerTest extends ProducerTestCase {
     assertThat(e)
         .hasMessageThat()
         .contains(
-            "//flag:foo: invalid value in 'scope' attribute: has to be one of 'universal' or"
-                + " 'project' instead of 'Project");
+            "//flag:foo: invalid value in 'scope' attribute: has to be one of 'universal', "
+                + "'project', or 'project_maintained_through_exec' instead of 'Project'");
   }
 
   private static final String CONTEXT = "context";

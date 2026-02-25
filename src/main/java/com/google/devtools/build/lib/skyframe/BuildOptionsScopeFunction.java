@@ -134,7 +134,8 @@ public final class BuildOptionsScopeFunction implements SkyFunction {
 
     Map<Label, ProjectFilesLookupValue.Key> targetsToSkyKeys = new HashMap<>();
     for (Label starlarkOption : scopes.keySet()) {
-      if (scopes.get(starlarkOption).getScopeType() == Scope.ScopeType.PROJECT) {
+      if (scopes.get(starlarkOption).getScopeType() == Scope.ScopeType.PROJECT
+          || scopes.get(starlarkOption).getScopeType() == Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC) {
         targetsToSkyKeys.put(
             starlarkOption, ProjectFilesLookupValue.key(starlarkOption.getPackageIdentifier()));
       }

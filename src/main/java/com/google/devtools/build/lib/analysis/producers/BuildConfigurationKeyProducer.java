@@ -33,6 +33,7 @@ import com.google.devtools.build.skyframe.SkyValue;
 import com.google.devtools.build.skyframe.state.StateMachine;
 import com.google.devtools.build.skyframe.state.StateMachine.ValueOrExceptionSink;
 import com.google.devtools.common.options.OptionsParsingException;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -183,7 +184,9 @@ public final class BuildConfigurationKeyProducer<C>
           this.postPlatformProcessedOptions.getScopeTypeMap().get(entry.getKey());
       // scope is null is applicable for cases where a transition applies starlark flags that are
       // not already part of the baseline configuration.
-      if (scopeType == null || scopeType == Scope.ScopeType.PROJECT) {
+      if (scopeType == null
+          || scopeType == Scope.ScopeType.PROJECT
+          || scopeType == Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC) {
         flagsWithIncompleteScopeInfo.add(entry.getKey());
       }
     }
@@ -275,8 +278,10 @@ public final class BuildConfigurationKeyProducer<C>
 
     boolean shouldApplyScopes =
         buildOptionsScopeValue.getFullyResolvedScopes().values().stream()
-            .anyMatch(scope -> scope.getScopeType() == Scope.ScopeType.PROJECT);
-
+            .anyMatch(
+                scope ->
+                    scope.getScopeType() == Scope.ScopeType.PROJECT
+                        || scope.getScopeType() == Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC);
     if (!shouldApplyScopes) {
       return finishConfigurationKeyProcessing(
           buildOptionsScopeValue.getResolvedBuildOptionsWithScopeTypes());
@@ -293,8 +298,9 @@ public final class BuildConfigurationKeyProducer<C>
     BuildOptions resolved = buildOptionsScopeValue.getResolvedBuildOptionsWithScopeTypes();
     BuildOptions finalBuildOptions =
         baselineConfiguration.getStarlarkOptions().equals(resolved.getStarlarkOptions())
+                || this.label == null
             ? resolved
-            : resetFlags(buildOptionsScopeValue, baselineConfiguration, label);
+            : resetFlags(buildOptionsScopeValue, this.baselineConfiguration, this.label);
     return finishConfigurationKeyProcessing(finalBuildOptions);
   }
 
@@ -342,9 +348,10 @@ public final class BuildConfigurationKeyProducer<C>
       Scope scope = buildOptionsScopeValue.getFullyResolvedScopes().get(flagLabel);
       if (scope == null) {
         Verify.verify(
-            transitionedOptionsWithScopeType.getScopeTypeMap().get(flagLabel)
-                != Scope.ScopeType.PROJECT);
-      } else if (scope.getScopeType() == Scope.ScopeType.PROJECT) {
+            transitionedOptionsWithScopeType.getScopeTypeMap().get(flagLabel) != Scope.ScopeType.PROJECT
+                && transitionedOptionsWithScopeType.getScopeTypeMap().get(flagLabel) != Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC);
+      } else if (scope.getScopeType() == Scope.ScopeType.PROJECT
+          || scope.getScopeType() == Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC) {
         Object flagValue = flagEntry.getValue();
         Object baselineValue = baselineConfiguration.getStarlarkOptions().get(flagLabel);
         if (flagValue != baselineValue && !isInScope(label, scope.getScopeDefinition())) {
@@ -371,8 +378,12 @@ public final class BuildConfigurationKeyProducer<C>
     return scopedBuildOptions;
   }
 
-  private static boolean isInScope(Label label, Scope.ScopeDefinition scopeDefinition) {
-    Preconditions.checkNotNull(scopeDefinition);
+  private static boolean isInScope(Label label, @Nullable Scope.ScopeDefinition scopeDefinition) {
+    // A null scopeDefinition means the flag's package has no PROJECT.scl file. Treat the target
+    // as not in scope so the flag resets to its baseline value.
+    if (scopeDefinition == null) {
+      return false;
+    }
     for (String path : scopeDefinition.getOwnedCodePaths()) {
       if (label.getCanonicalForm().startsWith(path)) {
         return true;

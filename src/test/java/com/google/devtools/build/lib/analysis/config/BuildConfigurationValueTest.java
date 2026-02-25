@@ -492,6 +492,11 @@ public final class BuildConfigurationValueTest extends ConfigurationTestCase {
             build_setting_default = "default",
             scope = "universal",
         )
+        string_flag(
+            name = "project_maintained_through_exec_scope",
+            build_setting_default = "default",
+            scope = "project_maintained_through_exec",
+        )
         """);
 
     BuildConfigurationValue execConfig =
@@ -502,6 +507,8 @@ public final class BuildConfigurationValueTest extends ConfigurationTestCase {
                 "//test:target_scope",
                 "custom",
                 "//test:universal_scope",
+                "custom",
+                "//test:project_maintained_through_exec_scope",
                 "custom"),
             "--experimental_exclude_starlark_flags_from_exec_config="
                 + (propagateByDefault ? "false" : "true"));
@@ -511,11 +518,17 @@ public final class BuildConfigurationValueTest extends ConfigurationTestCase {
           .containsExactly(
               Label.parseCanonicalUnchecked("//test:universal_scope"),
               "custom",
+              Label.parseCanonicalUnchecked("//test:project_maintained_through_exec_scope"),
+              "custom",
               Label.parseCanonicalUnchecked("//test:default_scope"),
               "custom");
     } else {
       assertThat(execConfig.getOptions().getStarlarkOptions())
-          .containsExactly(Label.parseCanonicalUnchecked("//test:universal_scope"), "custom");
+          .containsExactly(
+              Label.parseCanonicalUnchecked("//test:universal_scope"),
+              "custom",
+              Label.parseCanonicalUnchecked("//test:project_maintained_through_exec_scope"),
+              "custom");
     }
   }
 

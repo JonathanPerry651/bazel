@@ -255,7 +255,7 @@ public class StarlarkOptionsParser {
 
       // TODO: b/384058698 - use NonConfigurableAttributeMapper to ensure "scope" isn't selectable.
       var attrMap = RawAttributeMapper.of(buildSettingTarget.getAssociatedRule());
-      String scopeType = ScopeType.DEFAULT.toString();
+      String scopeType = ScopeType.DEFAULT.name().toLowerCase(Locale.ROOT);
       if (attrMap.isAttributeValueExplicitlySpecified("scope")) {
         scopeType = attrMap.get("scope", Type.STRING);
         if (!ScopeType.allowedAttributeValues().contains(scopeType.toLowerCase(Locale.ROOT))) {

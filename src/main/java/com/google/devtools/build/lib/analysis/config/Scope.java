@@ -35,6 +35,11 @@ public class Scope {
     TARGET,
     /** The flag resets on targets outside the flag's project. See PROJECT.scl. * */
     PROJECT,
+    /**
+     * The flag resets on targets outside the flag's project. Unlike `project`, its value is
+     * maintained across exec transitions.
+     */
+    PROJECT_MAINTAINED_THROUGH_EXEC,
     /** Placeholder for flags that don't explicitly specify scope. Shouldn't be set directly. * */
     DEFAULT;
 

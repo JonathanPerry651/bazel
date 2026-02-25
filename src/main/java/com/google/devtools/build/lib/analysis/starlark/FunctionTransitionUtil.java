@@ -243,6 +243,7 @@ public final class FunctionTransitionUtil {
           .filter(
               entry ->
                   options.getScopeTypeMap().get(entry.getKey()) == Scope.ScopeType.UNIVERSAL
+                      || options.getScopeTypeMap().get(entry.getKey()) == Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC
                       || options.getScopeTypeMap().get(entry.getKey()) == Scope.ScopeType.DEFAULT)
           .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
@@ -261,7 +262,8 @@ public final class FunctionTransitionUtil {
 
     ImmutableMap.Builder<Label, Object> ans = ImmutableMap.builder();
     for (Map.Entry<Label, Object> entry : starlarkOptions.entrySet()) {
-      if (options.getScopeTypeMap().get(entry.getKey()) == Scope.ScopeType.UNIVERSAL) {
+      Scope.ScopeType scopeType = options.getScopeTypeMap().get(entry.getKey());
+      if (scopeType == Scope.ScopeType.UNIVERSAL || scopeType == Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC) {
         ans.put(entry);
       } else if (options.getScopeTypeMap().get(entry.getKey()) == Scope.ScopeType.TARGET) {
         // Don't propagate this flag.
