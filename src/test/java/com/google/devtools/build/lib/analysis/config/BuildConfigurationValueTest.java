@@ -493,6 +493,11 @@ public final class BuildConfigurationValueTest extends ConfigurationTestCase {
             scope = "universal",
         )
         string_flag(
+            name = "project_maintained_through_exec_scope",
+            build_setting_default = "default",
+            scope = "project_maintained_through_exec",
+        )
+        string_flag(
             name = "flag_in_exec_config_set_to_another_value",
             build_setting_default = "default",
             scope = "target",
@@ -511,19 +516,15 @@ public final class BuildConfigurationValueTest extends ConfigurationTestCase {
 
     BuildConfigurationValue execConfig =
         createExec(
-            ImmutableMap.of(
-                "//test:default_scope",
-                "custom",
-                "//test:target_scope",
-                "custom",
-                "//test:universal_scope",
-                "custom",
-                "//test:flag_in_exec_config_set_to_another_value",
-                "target_value",
-                "//test:flag_in_exec_config_reference_another_flag_value",
-                "target_value",
-                "//test:another_flag",
-                "default"),
+            ImmutableMap.<String, Object>builder()
+                .put("//test:default_scope", "custom")
+                .put("//test:target_scope", "custom")
+                .put("//test:universal_scope", "custom")
+                .put("//test:project_maintained_through_exec_scope", "custom")
+                .put("//test:flag_in_exec_config_set_to_another_value", "target_value")
+                .put("//test:flag_in_exec_config_reference_another_flag_value", "target_value")
+                .put("//test:another_flag", "default")
+                .buildOrThrow(),
             "--experimental_exclude_starlark_flags_from_exec_config="
                 + (propagateByDefault ? "false" : "true"));
 
@@ -531,6 +532,8 @@ public final class BuildConfigurationValueTest extends ConfigurationTestCase {
       assertThat(execConfig.getOptions().getStarlarkOptions())
           .containsExactly(
               Label.parseCanonicalUnchecked("//test:universal_scope"),
+              "custom",
+              Label.parseCanonicalUnchecked("//test:project_maintained_through_exec_scope"),
               "custom",
               Label.parseCanonicalUnchecked("//test:default_scope"),
               "custom",
@@ -540,6 +543,8 @@ public final class BuildConfigurationValueTest extends ConfigurationTestCase {
       assertThat(execConfig.getOptions().getStarlarkOptions())
           .containsExactly(
               Label.parseCanonicalUnchecked("//test:universal_scope"),
+              "custom",
+              Label.parseCanonicalUnchecked("//test:project_maintained_through_exec_scope"),
               "custom",
               Label.parseCanonicalUnchecked("//test:flag_in_exec_config_set_to_another_value"),
               "another_value",

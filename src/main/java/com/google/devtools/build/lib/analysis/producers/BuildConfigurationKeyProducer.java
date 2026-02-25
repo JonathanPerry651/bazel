@@ -185,6 +185,7 @@ public final class BuildConfigurationKeyProducer<C>
       // not already part of the baseline configuration.
       if (scopeType == null
           || scopeType.scopeType().equals(Scope.ScopeType.PROJECT)
+          || scopeType.scopeType().equals(Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC)
           || scopeType.scopeType().startsWith(Scope.CUSTOM_EXEC_SCOPE_PREFIX)) {
         flagsWithIncompleteScopeInfo.add(entry.getKey());
       }
@@ -277,7 +278,12 @@ public final class BuildConfigurationKeyProducer<C>
 
     boolean shouldApplyScopes =
         buildOptionsScopeValue.getFullyResolvedScopes().values().stream()
-            .anyMatch(scope -> scope.getScopeType().scopeType().equals(Scope.ScopeType.PROJECT));
+            .anyMatch(
+                scope ->
+                    scope.getScopeType().scopeType().equals(Scope.ScopeType.PROJECT)
+                        || scope.getScopeType()
+                            .scopeType()
+                            .equals(Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC));
 
     if (!shouldApplyScopes) {
       return finishConfigurationKeyProcessing(
@@ -295,8 +301,9 @@ public final class BuildConfigurationKeyProducer<C>
     BuildOptions resolved = buildOptionsScopeValue.getResolvedBuildOptionsWithScopeTypes();
     BuildOptions finalBuildOptions =
         baselineConfiguration.getStarlarkOptions().equals(resolved.getStarlarkOptions())
+                || this.label == null
             ? resolved
-            : resetFlags(buildOptionsScopeValue, baselineConfiguration, label);
+            : resetFlags(buildOptionsScopeValue, this.baselineConfiguration, this.label);
     return finishConfigurationKeyProcessing(finalBuildOptions);
   }
 
@@ -348,12 +355,24 @@ public final class BuildConfigurationKeyProducer<C>
                 .getScopeTypeMap()
                 .get(flagLabel)
                 .scopeType()
-                .equals(Scope.ScopeType.PROJECT));
-      } else if (scope.getScopeType().scopeType().equals(Scope.ScopeType.PROJECT)) {
+                .equals(Scope.ScopeType.PROJECT)
+                && !transitionedOptionsWithScopeType
+                    .getScopeTypeMap()
+                    .get(flagLabel)
+                    .scopeType()
+                    .equals(Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC));
+      } else if (scope.getScopeType().scopeType().equals(Scope.ScopeType.PROJECT)
+          || scope.getScopeType().scopeType().equals(Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC)) {
         Object flagValue = flagEntry.getValue();
         Object baselineValue = baselineConfiguration.getStarlarkOptions().get(flagLabel);
         if (flagValue != baselineValue && !isInScope(label, scope.getScopeDefinition())) {
-          if (baselineValue == null) {
+          Object onLeaveScopeValue =
+              transitionedOptionsWithScopeType.getOnLeaveScopeValues().get(flagLabel);
+          if (scope.getScopeType().scopeType().equals(Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC)
+              && onLeaveScopeValue != null) {
+            optionsWithScopeTypesBuilder.addStarlarkOption(flagLabel, onLeaveScopeValue);
+            flagsResetToBaseline = true;
+          } else if (baselineValue == null) {
             optionsWithScopeTypesBuilder.removeStarlarkOption(flagLabel);
             flagsRemoved = true;
           } else {

@@ -239,6 +239,7 @@ public final class FunctionTransitionUtil {
               entry -> {
                 String scopeType = options.getScopeTypeMap().get(entry.getKey()).scopeType();
                 return scopeType.equals(Scope.ScopeType.UNIVERSAL)
+                    || scopeType.equals(Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC)
                     || scopeType.equals(Scope.ScopeType.DEFAULT);
               })
           .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -259,7 +260,8 @@ public final class FunctionTransitionUtil {
     ImmutableMap.Builder<Label, Object> ans = ImmutableMap.builder();
     for (Map.Entry<Label, Object> entry : starlarkOptions.entrySet()) {
       String scopeType = options.getScopeTypeMap().get(entry.getKey()).scopeType();
-      if (scopeType.equals(Scope.ScopeType.UNIVERSAL)) {
+      if (scopeType.equals(Scope.ScopeType.UNIVERSAL)
+          || scopeType.equals(Scope.ScopeType.PROJECT_MAINTAINED_THROUGH_EXEC)) {
         ans.put(entry);
       } else if (scopeType.equals(Scope.ScopeType.TARGET)) {
         Object onLeaveScopeValue = options.getOnLeaveScopeValues().get(entry.getKey());

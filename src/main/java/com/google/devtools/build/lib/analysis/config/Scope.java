@@ -38,6 +38,12 @@ public class Scope {
     /** The flag resets on targets outside the flag's project. See PROJECT.scl. */
     public static final String PROJECT = "project";
 
+    /**
+     * The flag resets on targets outside the flag's project. Unlike `project`, its value is
+     * maintained across exec transitions.
+     */
+    public static final String PROJECT_MAINTAINED_THROUGH_EXEC = "project_maintained_through_exec";
+
     /** Placeholder for flags that don't explicitly specify scope. Shouldn't be set directly. */
     public static final String DEFAULT = "default";
 
@@ -46,6 +52,7 @@ public class Scope {
           || scopeType.equals(UNIVERSAL)
           || scopeType.equals(TARGET)
           || scopeType.equals(PROJECT)
+          || scopeType.equals(PROJECT_MAINTAINED_THROUGH_EXEC)
           || scopeType.startsWith("exec:"))) {
         // TODO: don't let blaze crash for an invalid scope type.
         throw new IllegalArgumentException("Invalid scope type: " + scopeType);
@@ -54,7 +61,7 @@ public class Scope {
 
     /** Which values can a rule's {@code scope} attribute have? */
     public static ImmutableList<String> allowedAttributeValues() {
-      return ImmutableList.of(UNIVERSAL, TARGET, PROJECT);
+      return ImmutableList.of(UNIVERSAL, TARGET, PROJECT, PROJECT_MAINTAINED_THROUGH_EXEC);
     }
   }
 

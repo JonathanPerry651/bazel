@@ -44,6 +44,7 @@ import com.google.devtools.build.lib.pkgcache.LoadingFailureEvent;
 import com.google.devtools.build.lib.skyframe.ActionLookupConflictFindingFunction;
 import com.google.devtools.build.lib.skyframe.ConfiguredTargetAndData;
 import com.google.devtools.build.lib.testutil.TestConstants.InternalTestExecutionMode;
+import com.google.devtools.build.lib.analysis.config.BuildOptions;
 import com.google.devtools.build.lib.util.Pair;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
@@ -1617,5 +1618,137 @@ public class BuildViewTest extends BuildViewTestBase {
     reporter.setOutputFilter(RegexOutputFilter.forPattern(Pattern.compile("^//pkg")));
     update("//pkg:foo");
     assertContainsEvent("DEBUG /workspace/pkg/BUILD:5:6: [\"foo\"]");
+  }
+
+  @Test
+  public void testProjectMaintainedThroughExecScopeDropsInOtherProjectTool() throws Exception {
+    scratch.file(
+        "my_project/def.bzl",
+        """
+        def _setting_impl(ctx):
+            return []
+
+        string_flag = rule(
+            implementation = _setting_impl,
+            build_setting = config.string(flag = True),
+            attrs = {
+                "scope": attr.string(default = "universal"),
+                "on_leave_scope": attr.string(),
+            },
+        )
+
+        def _tool_impl(ctx):
+            return []
+
+        my_tool = rule(implementation = _tool_impl)
+
+        def _lib_impl(ctx):
+            return []
+
+        my_lib = rule(
+            implementation = _lib_impl,
+            attrs = {
+                "tool": attr.label(cfg = "exec"),
+            }
+        )
+
+        def _transition_impl(settings, attr):
+            return {"//my_project:my_flag": "custom_value"}
+
+        my_transition = transition(
+            implementation = _transition_impl,
+            inputs = [],
+            outputs = ["//my_project:my_flag"],
+        )
+
+        def _top_level_impl(ctx):
+            return []
+
+        my_top_level = rule(
+            implementation = _top_level_impl,
+            cfg = my_transition,
+            attrs = {
+                "dep": attr.label(),
+            }
+        )
+        """);
+
+    scratch.file(
+        "my_project/BUILD",
+        """
+        load(":def.bzl", "string_flag", "my_lib", "my_top_level")
+
+        string_flag(
+            name = "my_flag",
+            build_setting_default = "default_value",
+            scope = "project_maintained_through_exec",
+            on_leave_scope = "illegal_value",
+        )
+
+        my_lib(
+            name = "my_lib",
+            tool = "//other_project:my_tool",
+        )
+
+        my_top_level(
+            name = "top_level",
+            dep = ":my_lib",
+        )
+        """);
+
+    scratch.file(
+        "my_project/PROJECT.scl",
+        """
+        project = {
+          "active_directories": {
+            "default": [
+                "//my_project/"
+            ]
+          }
+        }
+        """);
+
+    scratch.file(
+        "other_project/BUILD",
+        """
+        load("//my_project:def.bzl", "my_tool")
+
+        my_tool(
+            name = "my_tool",
+        )
+        """);
+
+    useConfiguration("--experimental_enable_scl_dialect=true");
+
+    update("//my_project:top_level");
+
+    ConfiguredTarget topLevelTarget = getConfiguredTarget("//my_project:top_level");
+    assertThat(topLevelTarget).isNotNull();
+
+    ConfiguredTarget libTarget = null;
+    for (ConfiguredTarget dep : getView().getDirectPrerequisitesForTesting(reporter, topLevelTarget)) {
+      if (dep.getLabel().toString().equals("//my_project:my_lib")) {
+        libTarget = dep;
+      }
+    }
+    assertThat(libTarget).isNotNull();
+
+    ConfiguredTarget toolTarget = null;
+    for (ConfiguredTarget dep : getView().getDirectPrerequisitesForTesting(reporter, libTarget)) {
+      if (dep.getLabel().toString().equals("//other_project:my_tool")) {
+        toolTarget = dep;
+      }
+    }
+    assertThat(toolTarget).isNotNull();
+    
+    BuildOptions toolOptions = getConfiguration(toolTarget).getOptions();
+
+    // The tool is in //other_project, but the flag is defined in //my_project and has
+    // project_maintained_through_exec scope. Since the tool crosses the project boundary,
+    // the flag should drop, but because it has on_leave_scope = "illegal_value", it
+    // should be set to "illegal_value".
+    Object flagValue =
+        toolOptions.getStarlarkOptions().get(Label.parseCanonicalUnchecked("//my_project:my_flag"));
+    assertThat(flagValue).isEqualTo("illegal_value");
   }
 }
