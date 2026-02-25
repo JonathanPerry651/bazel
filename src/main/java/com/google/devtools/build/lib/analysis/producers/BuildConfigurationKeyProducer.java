@@ -395,8 +395,12 @@ public final class BuildConfigurationKeyProducer<C>
     return scopedBuildOptions;
   }
 
-  private static boolean isInScope(Label label, Scope.ScopeDefinition scopeDefinition) {
-    Preconditions.checkNotNull(scopeDefinition);
+  private static boolean isInScope(Label label, @Nullable Scope.ScopeDefinition scopeDefinition) {
+    // A null scopeDefinition means the flag's package has no PROJECT.scl file. Treat the target
+    // as not in scope so the flag resets to its baseline value.
+    if (scopeDefinition == null) {
+      return false;
+    }
     for (String path : scopeDefinition.getOwnedCodePaths()) {
       if (label.getCanonicalForm().startsWith(path)) {
         return true;

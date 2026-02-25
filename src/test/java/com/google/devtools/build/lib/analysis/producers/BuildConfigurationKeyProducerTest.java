@@ -742,6 +742,42 @@ public class BuildConfigurationKeyProducerTest extends ProducerTestCase {
   }
 
   @Test
+  public void createKey_withScopedBuildOptions_projectFlag_noProjectSclInFlagPackage()
+      throws Exception {
+    // Tests that a project-scoped flag does not crash with NPE when the flag's package has no
+    // PROJECT.scl file. The flag should be treated as not in scope and reset to baseline.
+    createStarlarkFlagRule();
+    scratch.file(
+        "flag/BUILD",
+        """
+        load(":def.bzl", "basic_flag")
+        basic_flag(
+            name = "foo",
+            scope = "project",
+            build_setting_default = "default",
+        )
+        """);
+    // Deliberately NO flag/PROJECT.scl file — simulates a flag in a package without scope info.
+
+    invalidatePackages(false);
+
+    BuildOptions baseOptions = createBuildOptions("--//flag:foo=custom_value");
+    BuildConfigurationKey result =
+        fetch(baseOptions, Label.parseCanonicalUnchecked("//my_project:my_target"));
+    assertThat(result).isNotNull();
+
+    // The flag has project scope but its package has no PROJECT.scl, so scopeDefinition is null.
+    // isInScope() should return false (not in scope) rather than throwing NPE.
+    // Since the flag is not in the baseline, it should be absent from the result options.
+    assertThat(
+            result
+                .getOptions()
+                .getStarlarkOptions()
+                .get(Label.parseCanonicalUnchecked("//flag:foo")))
+        .isNull();
+  }
+
+  @Test
   public void createKey_withScopedBuildOptions_outOfScopeFlag_onLeaveScope() throws Exception {
     scratch.file(
         "flag/def.bzl",
