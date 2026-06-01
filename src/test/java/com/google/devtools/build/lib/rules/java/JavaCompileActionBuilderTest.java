@@ -204,4 +204,22 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
         .containsExactly(
             "bin java/com/google/test/libb-hjar.jar", "bin java/com/google/test/libc-hjar.jar");
   }
+
+  @Test
+  public void testUnusedDepsFlagPropagation() throws Exception {
+    useConfiguration("--experimental_unused_deps=error");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode.ERROR);
+  }
 }

@@ -598,6 +598,69 @@ public class JavaStarlarkApiTest extends BuildViewTestCase {
   }
 
   @Test
+  public void unusedDepsFlagExposed_default() throws Exception {
+    scratch.file(
+        "foo/rule.bzl",
+        """
+        result = provider()
+
+        def _impl(ctx):
+            return [result(unused_deps = ctx.fragments.java.experimental_unused_deps)]
+
+        myrule = rule(
+            implementation = _impl,
+            fragments = ["java"],
+        )
+        """);
+    scratch.file(
+        "foo/BUILD",
+        """
+        load(":rule.bzl", "myrule")
+
+        myrule(name = "myrule")
+        """);
+    ConfiguredTarget configuredTarget = getConfiguredTarget("//foo:myrule");
+    StructImpl info =
+        (StructImpl)
+            configuredTarget.get(
+                new StarlarkProvider.Key(
+                    keyForBuild(Label.parseCanonical("//foo:rule.bzl")), "result"));
+    assertThat(((String) info.getValue("unused_deps"))).isEqualTo("default");
+  }
+
+  @Test
+  public void unusedDepsFlagExposed_error() throws Exception {
+    scratch.file(
+        "foo/rule.bzl",
+        """
+        result = provider()
+
+        def _impl(ctx):
+            return [result(unused_deps = ctx.fragments.java.experimental_unused_deps)]
+
+        myrule = rule(
+            implementation = _impl,
+            fragments = ["java"],
+        )
+        """);
+    scratch.file(
+        "foo/BUILD",
+        """
+        load(":rule.bzl", "myrule")
+
+        myrule(name = "myrule")
+        """);
+    useConfiguration("--experimental_unused_deps=ERROR");
+    ConfiguredTarget configuredTarget = getConfiguredTarget("//foo:myrule");
+    StructImpl info =
+        (StructImpl)
+            configuredTarget.get(
+                new StarlarkProvider.Key(
+                    keyForBuild(Label.parseCanonical("//foo:rule.bzl")), "result"));
+    assertThat(((String) info.getValue("unused_deps"))).isEqualTo("error");
+  }
+
+  @Test
   public void mergeRuntimeOutputJarsTest() throws Exception {
     scratch.file(
         "foo/custom_library.bzl",

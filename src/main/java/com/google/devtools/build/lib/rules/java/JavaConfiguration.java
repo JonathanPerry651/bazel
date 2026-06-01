@@ -84,6 +84,7 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
   private final boolean inmemoryJdepsFiles;
   private final ImmutableList<String> defaultJvmFlags;
   private final StrictDepsMode strictJavaDeps;
+  private final StrictDepsMode unusedDeps;
   private final String fixDepsTool;
   private final Label proguardBinary;
   private final NamedLabel bytecodeOptimizer;
@@ -115,6 +116,7 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
     this.inmemoryJdepsFiles = javaOptions.inmemoryJdepsFiles;
     this.defaultJvmFlags = ImmutableList.copyOf(javaOptions.jvmOpts);
     this.strictJavaDeps = javaOptions.strictJavaDeps;
+    this.unusedDeps = javaOptions.unusedDeps;
     this.fixDepsTool = javaOptions.fixDepsTool;
     this.proguardBinary = javaOptions.proguard;
     this.runLocalJavaOptimizations = javaOptions.runLocalJavaOptimizations;
@@ -174,6 +176,15 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
   @Override
   public String getStrictJavaDepsName() {
     return Ascii.toLowerCase(strictJavaDeps.name());
+  }
+
+  @Override
+  public String getUnusedDepsName() {
+    return Ascii.toLowerCase(unusedDeps.name());
+  }
+
+  public StrictDepsMode getUnusedDeps() {
+    return unusedDeps;
   }
 
   /** Returns true iff Java compilation should use ijars. */

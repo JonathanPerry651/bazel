@@ -178,6 +178,17 @@ public class JavaOptions extends FragmentOptions {
   public StrictDepsMode strictJavaDeps;
 
   @Option(
+      name = "experimental_unused_deps",
+      allowMultiple = false,
+      defaultValue = "default",
+      converter = StrictDepsConverter.class,
+      documentationCategory = OptionDocumentationCategory.INPUT_STRICTNESS,
+      effectTags = {OptionEffectTag.BUILD_FILE_SEMANTICS, OptionEffectTag.EAGERNESS_TO_EXIT},
+      help =
+          "Checks that a Java target does not declare any unused direct dependencies.")
+  public StrictDepsMode unusedDeps;
+
+  @Option(
       name = "experimental_fix_deps_tool",
       defaultValue = "add_dep",
       documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,

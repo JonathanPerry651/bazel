@@ -197,6 +197,40 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
   public void finish() {
     implicitDependencyExtractor.accumulate(context, checkingTreeScanner.getSeenClasses());
 
+    if (dependencyModule.getUnusedDeps() != StrictJavaDeps.OFF) {
+      Set<Path> directJars = dependencyModule.directJars();
+      Map<Path, Dependency> explicitDeps = dependencyModule.getExplicitDependenciesMap();
+      Map<Path, Dependency> implicitDeps = dependencyModule.getImplicitDependenciesMap();
+      String targetLabel =
+          dependencyModule.getTargetLabel() == null
+              ? "<target>"
+              : canonicalizeTarget(dependencyModule.getTargetLabel());
+
+      for (Path directJar : directJars) {
+        if (!explicitDeps.containsKey(directJar) && !implicitDeps.containsKey(directJar)) {
+          JarOwner owner = readJarOwnerFromManifest(NonPlatformJar.forClasspathJar(directJar));
+          String label = owner.label().isPresent()
+              ? canonicalizeTarget(owner.label().get())
+              : directJar.toString();
+          String message = String.format(
+              "[unused-deps] Dependency '%s' (from jar '%s') is declared as a direct dependency but is not referenced in jdeps.\n"
+                  + "\033[35m\033[1m ** You can use the following buildozer command:\033[0m \n"
+                  + "buildozer 'remove deps %s' %s\n",
+              label, directJar, label, targetLabel);
+          switch (dependencyModule.getUnusedDeps()) {
+            case ERROR:
+              log.error(Position.NOPOS, Errors.ProcMessager(message));
+              break;
+            case WARN:
+              log.warning(Position.NOPOS, Warnings.ProcMessager(message));
+              break;
+            case OFF:
+              break;
+          }
+        }
+      }
+    }
+
     for (SjdDiagnostic diagnostic : diagnostics) {
       JavaFileObject prev = log.useSource(diagnostic.source());
       try {
@@ -233,6 +267,29 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
             dependencyModule.getFixMessage().get(canonicalizedMissing, canonicalizedLabel));
         dependencyModule.setHasMissingTargets();
       }
+    }
+  }
+
+  private static JarOwner readJarOwnerFromManifest(NonPlatformJar jar) {
+    if (jar.getKind() == FOR_JSPECIFY_FROM_PLATFORM) {
+      return JSPECIFY_JAR_OWNER;
+    }
+    Path jarPath = jar.inClasspath();
+    try (JarFile jarFile = new JarFile(jarPath.toFile())) {
+      Manifest manifest = jarFile.getManifest();
+      if (manifest == null) {
+        return JarOwner.create(jarPath);
+      }
+      Attributes attributes = manifest.getMainAttributes();
+      String label = (String) attributes.get(TARGET_LABEL);
+      if (label == null) {
+        return JarOwner.create(jarPath);
+      }
+      String injectingRuleKind = (String) attributes.get(INJECTING_RULE_KIND);
+      return JarOwner.create(jarPath, label, Optional.ofNullable(injectingRuleKind));
+    } catch (IOException e) {
+      // This jar file pretty much has to exist, we just used it in the compiler. Throw unchecked.
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -365,28 +422,6 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
       }
     }
 
-    private JarOwner readJarOwnerFromManifest(NonPlatformJar jar) {
-      if (jar.getKind() == FOR_JSPECIFY_FROM_PLATFORM) {
-        return JSPECIFY_JAR_OWNER;
-      }
-      Path jarPath = jar.inClasspath();
-      try (JarFile jarFile = new JarFile(jarPath.toFile())) {
-        Manifest manifest = jarFile.getManifest();
-        if (manifest == null) {
-          return JarOwner.create(jarPath);
-        }
-        Attributes attributes = manifest.getMainAttributes();
-        String label = (String) attributes.get(TARGET_LABEL);
-        if (label == null) {
-          return JarOwner.create(jarPath);
-        }
-        String injectingRuleKind = (String) attributes.get(INJECTING_RULE_KIND);
-        return JarOwner.create(jarPath, label, Optional.ofNullable(injectingRuleKind));
-      } catch (IOException e) {
-        // This jar file pretty much has to exist, we just used it in the compiler. Throw unchecked.
-        throw new UncheckedIOException(e);
-      }
-    }
 
     @Override
     public Void visitMethod(MethodTree method, Void unused) {
