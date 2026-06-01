@@ -140,6 +140,7 @@ public final class JavaCompileActionBuilder {
   private ImmutableSet<Artifact> sourceFiles = ImmutableSet.of();
   private ImmutableList<Artifact> sourceJars = ImmutableList.of();
   private StrictDepsMode strictJavaDeps = StrictDepsMode.ERROR;
+  private StrictDepsMode unusedDeps = StrictDepsMode.ERROR;
   private String fixDepsTool = "add_dep";
   private NestedSet<Artifact> directJars = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
   private NestedSet<Artifact> compileTimeDependencyArtifacts =
@@ -176,9 +177,9 @@ public final class JavaCompileActionBuilder {
     // TODO(bazel-team): all the params should be calculated before getting here, and the various
     // aggregation code below should go away.
 
-    // Invariant: if strictJavaDeps is OFF, then directJars and
+    // Invariant: if strictJavaDeps and unusedDeps are OFF, then directJars and
     // dependencyArtifacts are ignored
-    if (strictJavaDeps == StrictDepsMode.OFF) {
+    if (strictJavaDeps == StrictDepsMode.OFF && unusedDeps == StrictDepsMode.OFF) {
       directJars = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
       compileTimeDependencyArtifacts = NestedSetBuilder.emptySet(Order.STABLE_ORDER);
     }
@@ -318,6 +319,11 @@ public final class JavaCompileActionBuilder {
     // written out and whether we try to minimize the compile-time classpath.
     if (strictJavaDeps != StrictDepsMode.OFF) {
       result.add("--strict_java_deps", strictJavaDeps.toString());
+    }
+    if (unusedDeps != StrictDepsMode.OFF) {
+      result.add("--experimental_unused_deps", unusedDeps.toString());
+    }
+    if (strictJavaDeps != StrictDepsMode.OFF || unusedDeps != StrictDepsMode.OFF) {
       result.addExecPaths("--direct_dependencies", directJars);
     }
     result.add("--experimental_fix_deps_tool", fixDepsTool);
@@ -353,6 +359,13 @@ public final class JavaCompileActionBuilder {
   @CanIgnoreReturnValue
   public JavaCompileActionBuilder setStrictJavaDeps(StrictDepsMode strictDeps) {
     strictJavaDeps = strictDeps;
+    return this;
+  }
+
+  /** Sets the unused dependency checking mode, see {@link StrictDepsMode}. */
+  @CanIgnoreReturnValue
+  public JavaCompileActionBuilder setUnusedDeps(StrictDepsMode unusedDepsMode) {
+    unusedDeps = unusedDepsMode;
     return this;
   }
 

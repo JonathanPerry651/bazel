@@ -165,6 +165,9 @@ public final class JavaLibraryBuildRequest {
     if (optionsParser.getStrictJavaDeps() != null) {
       depsBuilder.setStrictJavaDeps(optionsParser.getStrictJavaDeps());
     }
+    if (optionsParser.getUnusedDeps() != null) {
+      depsBuilder.setUnusedDeps(optionsParser.getUnusedDeps());
+    }
     if (optionsParser.getOutputDepsProtoFile() != null) {
       depsBuilder.setOutputDepsProtoFile(asPath(optionsParser.getOutputDepsProtoFile()));
     }
