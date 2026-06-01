@@ -74,6 +74,7 @@ public final class DependencyModule {
           "dagger.hilt.processor.internal.root.RootProcessor");
 
   private final StrictJavaDeps strictJavaDeps;
+  private final StrictJavaDeps unusedDeps;
   private final FixTool fixDepsTool;
   private final ImmutableSet<Path> directJars;
   private final boolean strictClasspathMode;
@@ -91,6 +92,7 @@ public final class DependencyModule {
 
   DependencyModule(
       StrictJavaDeps strictJavaDeps,
+      StrictJavaDeps unusedDeps,
       FixTool fixDepsTool,
       ImmutableSet<Path> directJars,
       boolean strictClasspathMode,
@@ -101,6 +103,7 @@ public final class DependencyModule {
       FixMessage fixMessage,
       Set<String> exemptGenerators) {
     this.strictJavaDeps = strictJavaDeps;
+    this.unusedDeps = unusedDeps;
     this.fixDepsTool = fixDepsTool;
     this.directJars = directJars;
     this.strictClasspathMode = strictClasspathMode;
@@ -179,6 +182,11 @@ public final class DependencyModule {
   /** Returns the strict dependency checking (strictJavaDeps) setting. */
   public StrictJavaDeps getStrictJavaDeps() {
     return strictJavaDeps;
+  }
+
+  /** Returns the unused dependency checking setting. */
+  public StrictJavaDeps getUnusedDeps() {
+    return unusedDeps;
   }
 
   /** Returns which tool to use for adding missing dependencies. */
@@ -331,6 +339,7 @@ public final class DependencyModule {
   public static class Builder {
 
     private StrictJavaDeps strictJavaDeps = StrictJavaDeps.OFF;
+    private StrictJavaDeps unusedDeps = StrictJavaDeps.OFF;
     private FixTool fixDepsTool = null;
     private ImmutableSet<Path> directJars = ImmutableSet.of();
     private final Set<Path> depsArtifacts = new HashSet<>();
@@ -368,6 +377,7 @@ public final class DependencyModule {
     public DependencyModule build() {
       return new DependencyModule(
           strictJavaDeps,
+          unusedDeps,
           fixDepsTool,
           directJars,
           strictClasspathMode,
@@ -388,6 +398,18 @@ public final class DependencyModule {
     @CanIgnoreReturnValue
     public Builder setStrictJavaDeps(String strictJavaDeps) {
       this.strictJavaDeps = StrictJavaDeps.valueOf(strictJavaDeps);
+      return this;
+    }
+
+    /**
+     * Sets the strictness level for unused dependency checking.
+     *
+     * @param unusedDeps level, as specified by {@link StrictJavaDeps}
+     * @return this Builder instance
+     */
+    @CanIgnoreReturnValue
+    public Builder setUnusedDeps(String unusedDeps) {
+      this.unusedDeps = StrictJavaDeps.valueOf(unusedDeps);
       return this;
     }
 
