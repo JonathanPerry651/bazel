@@ -43,6 +43,7 @@ import com.google.devtools.build.lib.remote.BazelOutputServiceProto.StartBuildRe
 import com.google.devtools.build.lib.remote.BazelOutputServiceREv2Proto.FileArtifactLocator;
 import com.google.devtools.build.lib.remote.BazelOutputServiceREv2Proto.StartBuildArgs;
 import com.google.devtools.build.lib.remote.RemoteExecutionService.ActionResultMetadata.FileMetadata;
+import com.google.devtools.build.lib.remote.common.RemotePathResolver;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.remote.util.Utils;
 import com.google.devtools.build.lib.server.FailureDetails.Execution;
@@ -86,6 +87,16 @@ public class BazelOutputService implements OutputService {
   private final RemoteRetrier retrier;
   private final ReferenceCountedChannel channel;
   @Nullable private final String lastBuildId;
+  private final java.util.Set<String> seenConfigSegments = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+  private void registerConfigSegment(PathFragment execPath) {
+    if (execPath.segmentCount() >= 2 && execPath.getSegment(0).equals("bazel-out")) {
+      String segment = execPath.getSegment(1);
+      if (!segment.equals("cfg")) {
+        seenConfigSegments.add(segment);
+      }
+    }
+  }
 
   @Nullable private String buildId;
   @Nullable private PathFragment outputPathTarget;
@@ -273,14 +284,23 @@ public class BazelOutputService implements OutputService {
                 }));
   }
 
-  protected void stageArtifacts(List<FileMetadata> files) throws IOException, InterruptedException {
+  public void stageArtifacts(List<FileMetadata> files, @Nullable RemotePathResolver remotePathResolver) throws IOException, InterruptedException {
     var outputPath = outputPathSupplier.get();
     var request = StageArtifactsRequest.newBuilder();
     request.setBuildId(buildId);
     for (var file : files) {
+      Path path = file.path();
+      if (remotePathResolver != null) {
+        try {
+          path = remotePathResolver.outputPathToLocalPath(remotePathResolver.localPathToOutputPath(path));
+        } catch (Exception e) {
+          // Fallback to original path if mapping fails or isn't present in inverse map
+        }
+      }
+      registerConfigSegment(path.relativeTo(execRootSupplier.get()));
       request.addArtifacts(
           StageArtifactsRequest.Artifact.newBuilder()
-              .setPath(file.path().relativeTo(outputPath).toString())
+              .setPath(path.relativeTo(outputPath).toString())
               .setLocator(
                   Any.pack(FileArtifactLocator.newBuilder().setDigest(file.digest()).build()))
               .build());
@@ -302,6 +322,10 @@ public class BazelOutputService implements OutputService {
                 files.get(i).path().relativeTo(outputPath), fileResponse.getStatus()));
       }
     }
+  }
+
+  protected void stageArtifacts(List<FileMetadata> files) throws IOException, InterruptedException {
+    stageArtifacts(files, null);
   }
 
   private StageArtifactsResponse stageArtifacts(StageArtifactsRequest request)
@@ -367,6 +391,7 @@ public class BazelOutputService implements OutputService {
     var request = FinalizeArtifactsRequest.newBuilder();
     request.setBuildId(buildId);
     for (var output : action.getOutputs()) {
+      registerConfigSegment(output.getExecPath());
       if (outputMetadataStore.artifactOmitted(output)) {
         continue;
       }
@@ -702,8 +727,22 @@ public class BazelOutputService implements OutputService {
           return super.getFastDigest(path);
         }
 
-        var request =
-            BatchStatRequest.newBuilder().setBuildId(buildId).addPaths(pathString).build();
+        var candidates = new java.util.ArrayList<String>();
+        if (pathString.startsWith("cfg/")) {
+          var suffix = pathString.substring(4);
+          for (var config : seenConfigSegments) {
+            candidates.add(config + "/" + suffix);
+          }
+        }
+        if (candidates.isEmpty()) {
+          candidates.add(pathString);
+        }
+
+        var requestBuilder = BatchStatRequest.newBuilder().setBuildId(buildId);
+        for (var candidate : candidates) {
+          requestBuilder.addPaths(candidate);
+        }
+        var request = requestBuilder.build();
         BatchStatResponse response;
         try {
           response = batchStat(request);
@@ -711,27 +750,28 @@ public class BazelOutputService implements OutputService {
           throw new IOException(e);
         }
 
-        if (response.getResponsesCount() != 1) {
+        if (response.getResponsesCount() != candidates.size()) {
           throw new IOException(
               String.format(
-                  "BatchStat failed: expect 1 response, got %s", response.getResponsesCount()));
+                  "BatchStat failed: expect %s responses, got %s",
+                  candidates.size(), response.getResponsesCount()));
         }
 
-        var statResponse = response.getResponses(0);
-        if (!statResponse.hasStat()) {
-          throw new FileNotFoundException(path.getPathString());
-        }
-
-        var stat = statResponse.getStat();
-        if (stat.hasFile()) {
-          var file = stat.getFile();
-          if (file.hasLocator()) {
-            var locator = file.getLocator().unpack(FileArtifactLocator.class);
-            return DigestUtil.toBinaryDigest(locator.getDigest());
+        for (var statResponse : response.getResponsesList()) {
+          if (statResponse.hasStat()) {
+            var stat = statResponse.getStat();
+            if (stat.hasFile()) {
+              var file = stat.getFile();
+              if (file.hasLocator()) {
+                var locator = file.getLocator().unpack(FileArtifactLocator.class);
+                return DigestUtil.toBinaryDigest(locator.getDigest());
+              }
+            }
+            return null;
           }
         }
 
-        return null;
+        throw new FileNotFoundException(path.getPathString());
       }
     };
   }

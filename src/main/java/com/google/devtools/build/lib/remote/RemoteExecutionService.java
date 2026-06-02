@@ -1378,7 +1378,7 @@ public class RemoteExecutionService {
 
     if (hasBazelOutputService) {
       // TODO(chiwang): Stage directories directly
-      ((BazelOutputService) outputService).stageArtifacts(finishedDownloads);
+      ((BazelOutputService) outputService).stageArtifacts(finishedDownloads, action.getRemotePathResolver());
     } else {
       moveOutputsToFinalLocation(
           Iterables.transform(finishedDownloads, FileMetadata::path), realToTmpPath);
