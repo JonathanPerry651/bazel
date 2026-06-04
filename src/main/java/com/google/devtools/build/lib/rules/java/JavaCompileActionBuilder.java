@@ -320,7 +320,7 @@ public final class JavaCompileActionBuilder {
     if (strictJavaDeps != StrictDepsMode.OFF) {
       result.add("--strict_java_deps", strictJavaDeps.toString());
     }
-    if (unusedDeps != StrictDepsMode.OFF) {
+    if (unusedDeps != StrictDepsMode.OFF && unusedDeps != StrictDepsMode.DEFAULT) {
       result.add("--experimental_unused_deps", unusedDeps.toString());
     }
     if (strictJavaDeps != StrictDepsMode.OFF || unusedDeps != StrictDepsMode.OFF) {
