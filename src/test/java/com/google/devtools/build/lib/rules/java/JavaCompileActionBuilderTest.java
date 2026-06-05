@@ -222,4 +222,42 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
     assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
         .isEqualTo(com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode.ERROR);
   }
+
+  @Test
+  public void testUnusedDepsTagOptIn() throws Exception {
+    // Global unused_deps is off by default
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            tags = ["unused-deps:error"],
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode.ERROR);
+  }
+
+  @Test
+  public void testUnusedDepsTagOptOut() throws Exception {
+    useConfiguration("--experimental_unused_deps=error");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            tags = ["unused-deps:off"],
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode.OFF);
+  }
 }

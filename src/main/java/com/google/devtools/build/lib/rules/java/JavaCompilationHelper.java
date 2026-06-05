@@ -41,6 +41,7 @@ import com.google.devtools.build.lib.collect.nestedset.Order;
 import com.google.devtools.build.lib.concurrent.BlazeInterners;
 import com.google.devtools.build.lib.packages.RuleClass.ConfiguredTargetFactory.RuleErrorException;
 import com.google.devtools.build.lib.packages.TargetUtils;
+import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode;
 import com.google.devtools.build.lib.rules.java.JavaConfiguration.JavaClasspathMode;
 import com.google.devtools.build.lib.rules.java.JavaPluginInfo.JavaPluginData;
 import com.google.devtools.build.lib.rules.java.JavaToolchainProvider.JspecifyInfo;
@@ -294,7 +295,7 @@ public final class JavaCompilationHelper {
     builder.setCompressJar(true);
     builder.setExtraData(computePerPackageData(ruleContext, javaToolchain));
     builder.setStrictJavaDeps(attributes.getStrictJavaDeps());
-    builder.setUnusedDeps(getJavaConfiguration().getUnusedDeps());
+    builder.setUnusedDeps(getUnusedDepsMode());
     builder.setFixDepsTool(getJavaConfiguration().getFixDepsTool());
     builder.setCompileTimeDependencyArtifacts(attributes.getCompileTimeDependencyArtifacts());
     builder.setTargetLabel(
@@ -580,5 +581,21 @@ public final class JavaCompilationHelper {
    */
   private ImmutableList<String> getJavacOpts() {
     return customJavacOpts;
+  }
+
+  private StrictDepsMode getUnusedDepsMode() {
+    StrictDepsMode mode = getJavaConfiguration().getUnusedDeps();
+    if (ruleContext.getRule() != null) {
+      for (String tag : ruleContext.getRule().getRuleTags()) {
+        if (tag.equalsIgnoreCase("unused-deps:off")) {
+          return StrictDepsMode.OFF;
+        } else if (tag.equalsIgnoreCase("unused-deps:warn")) {
+          return StrictDepsMode.WARN;
+        } else if (tag.equalsIgnoreCase("unused-deps:error")) {
+          return StrictDepsMode.ERROR;
+        }
+      }
+    }
+    return mode;
   }
 }
