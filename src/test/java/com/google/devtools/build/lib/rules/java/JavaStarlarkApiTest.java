@@ -186,7 +186,7 @@ public class JavaStarlarkApiTest extends BuildViewTestCase {
             configuredTarget.get(
                 new StarlarkProvider.Key(
                     keyForBuild(Label.parseCanonical("//foo:rule.bzl")), "result"));
-    assertThat(((String) info.getValue("unused_deps"))).isEqualTo("default");
+    assertThat(((String) info.getValue("unused_deps"))).isEqualTo("off");
   }
 
   @Test

@@ -186,7 +186,7 @@ public abstract class JavaOptions extends FragmentOptions {
   @Option(
       name = "experimental_unused_deps",
       allowMultiple = false,
-      defaultValue = "default",
+      defaultValue = "off",
       converter = StrictDepsConverter.class,
       documentationCategory = OptionDocumentationCategory.INPUT_STRICTNESS,
       effectTags = {OptionEffectTag.BUILD_FILE_SEMANTICS, OptionEffectTag.EAGERNESS_TO_EXIT},
