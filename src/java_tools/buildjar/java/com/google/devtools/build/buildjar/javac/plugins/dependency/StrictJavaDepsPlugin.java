@@ -213,7 +213,9 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
               : canonicalizeTarget(dependencyModule.getTargetLabel());
 
       for (Path directJar : directJars) {
-        if (!explicitDeps.containsKey(directJar) && !implicitDeps.containsKey(directJar)) {
+        boolean isImplicitlyUsed = implicitDeps.containsKey(directJar)
+            && implicitDeps.get(directJar).getKind() != Dependency.Kind.INCOMPLETE;
+        if (!explicitDeps.containsKey(directJar) && !isImplicitlyUsed) {
           JarOwner owner = readJarOwnerFromManifest(NonPlatformJar.forClasspathJar(directJar));
           String label = owner.label().isPresent()
               ? canonicalizeTarget(owner.label().get())
