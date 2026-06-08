@@ -2532,6 +2532,11 @@ EOF
 }
 
 function test_unused_deps_enforcement_and_tags() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+
   mkdir -p java/unused_a java/unused_b
   cat << 'EOF' > java/unused_a/BUILD
 load("@rules_java//java:java_library.bzl", "java_library")
