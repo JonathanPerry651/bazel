@@ -2531,4 +2531,48 @@ EOF
   expect_log "foo.txt"
 }
 
+function test_unused_deps_enforcement_and_tags() {
+  mkdir -p java/unused_a java/unused_b
+  cat << 'EOF' > java/unused_a/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+package(default_visibility=['//visibility:public'])
+java_library(name = "unused_a", srcs = ["A.java"])
+EOF
+  cat << 'EOF' > java/unused_a/A.java
+package unused_a;
+public class A {}
+EOF
+
+  cat << 'EOF' > java/unused_b/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(name = "unused_b", srcs = ["B.java"], deps = ["//java/unused_a"])
+EOF
+  cat << 'EOF' > java/unused_b/B.java
+package unused_b;
+public class B {}
+EOF
+
+  # 1. Default behaviour: unused_deps is off by default -> build succeeds
+  bazel build //java/unused_b:unused_b >& $TEST_log || fail "build should succeed by default"
+
+  # 2. Strict behaviour: --experimental_unused_deps=error -> build fails
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=error >& $TEST_log && fail "build should fail with unused_deps=error"
+  expect_log "buildozer 'remove deps //java/unused_a' //java/unused_b"
+
+  # 3. Opt-out per target via tag: unused-deps:off -> build succeeds
+  cat << 'EOF' > java/unused_b/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(name = "unused_b", srcs = ["B.java"], deps = ["//java/unused_a"], tags = ["unused-deps:off"])
+EOF
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=error >& $TEST_log || fail "build should succeed with unused-deps:off tag"
+
+  # 4. Opt-in per target via tag: unused-deps:error -> build fails
+  cat << 'EOF' > java/unused_b/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(name = "unused_b", srcs = ["B.java"], deps = ["//java/unused_a"], tags = ["unused-deps:error"])
+EOF
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=off >& $TEST_log && fail "build should fail with unused-deps:error tag when global flag is off"
+  expect_log "buildozer 'remove deps //java/unused_a' //java/unused_b"
+}
+
 run_suite "Java integration tests"
