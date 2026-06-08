@@ -63,6 +63,11 @@ public final class JavaCompileActionTestHelper {
     return strictJavaDeps != null ? StrictDepsMode.valueOf(strictJavaDeps) : StrictDepsMode.OFF;
   }
 
+  public static StrictDepsMode getUnusedDepsMode(JavaCompileAction javac) throws Exception {
+    String unusedDeps = getOptions(javac).getUnusedDeps();
+    return unusedDeps != null ? StrictDepsMode.valueOf(unusedDeps) : StrictDepsMode.OFF;
+  }
+
   public static List<String> getClasspath(JavaCompileAction javac) throws Exception {
     return getOptions(javac).getClassPath();
   }

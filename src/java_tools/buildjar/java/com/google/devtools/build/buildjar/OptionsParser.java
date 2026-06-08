@@ -46,6 +46,7 @@ public final class OptionsParser {
   private final Set<String> directJars = new LinkedHashSet<>();
 
   private String strictJavaDeps;
+  private String unusedDeps;
   private String fixDepsTool;
 
   private String outputDepsProtoFile;
@@ -137,6 +138,9 @@ public final class OptionsParser {
           break;
         case "--strict_java_deps":
           strictJavaDeps = getArgument(argQueue, arg);
+          break;
+        case "--experimental_unused_deps":
+          unusedDeps = getArgument(argQueue, arg);
           break;
         case "--experimental_fix_deps_tool":
           fixDepsTool = getArgument(argQueue, arg);
@@ -351,6 +355,10 @@ public final class OptionsParser {
 
   public String getStrictJavaDeps() {
     return strictJavaDeps;
+  }
+
+  public String getUnusedDeps() {
+    return unusedDeps;
   }
 
   public String getFixDepsTool() {

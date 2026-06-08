@@ -294,6 +294,7 @@ public final class JavaCompilationHelper {
     builder.setCompressJar(true);
     builder.setExtraData(computePerPackageData(ruleContext, javaToolchain));
     builder.setStrictJavaDeps(attributes.getStrictJavaDeps());
+    builder.setUnusedDeps(getJavaConfiguration().getUnusedDeps());
     semantics
         .getFixDepsTool(ruleContext.getRule(), getJavaConfiguration())
         .ifPresent(builder::setFixDepsTool);
