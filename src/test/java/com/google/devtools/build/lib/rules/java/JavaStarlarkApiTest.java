@@ -159,15 +159,14 @@ public class JavaStarlarkApiTest extends BuildViewTestCase {
     assertThat(type).isEqualTo("JavaInfo");
   }
 
-  @Test
-  public void unusedDepsFlagExposed_default() throws Exception {
+  private void scratchUnusedDepsTestFiles() throws Exception {
     scratch.file(
         "foo/rule.bzl",
         """
         result = provider()
 
         def _impl(ctx):
-            return [result(unused_deps = ctx.fragments.java.experimental_unused_deps)]
+            return [result(unused_deps = ctx.fragments.java.unused_deps)]
 
         myrule = rule(
             implementation = _impl,
@@ -181,6 +180,11 @@ public class JavaStarlarkApiTest extends BuildViewTestCase {
 
         myrule(name = "myrule")
         """);
+  }
+
+  @Test
+  public void unusedDepsFlagExposed_default() throws Exception {
+    scratchUnusedDepsTestFiles();
     ConfiguredTarget configuredTarget = getConfiguredTarget("//foo:myrule");
     StructImpl info =
         (StructImpl)
@@ -192,26 +196,7 @@ public class JavaStarlarkApiTest extends BuildViewTestCase {
 
   @Test
   public void unusedDepsFlagExposed_error() throws Exception {
-    scratch.file(
-        "foo/rule.bzl",
-        """
-        result = provider()
-
-        def _impl(ctx):
-            return [result(unused_deps = ctx.fragments.java.experimental_unused_deps)]
-
-        myrule = rule(
-            implementation = _impl,
-            fragments = ["java"],
-        )
-        """);
-    scratch.file(
-        "foo/BUILD",
-        """
-        load(":rule.bzl", "myrule")
-
-        myrule(name = "myrule")
-        """);
+    scratchUnusedDepsTestFiles();
     useConfiguration("--experimental_unused_deps=ERROR");
     ConfiguredTarget configuredTarget = getConfiguredTarget("//foo:myrule");
     StructImpl info =
@@ -220,5 +205,18 @@ public class JavaStarlarkApiTest extends BuildViewTestCase {
                 new StarlarkProvider.Key(
                     keyForBuild(Label.parseCanonical("//foo:rule.bzl")), "result"));
     assertThat(((String) info.getValue("unused_deps"))).isEqualTo("error");
+  }
+
+  @Test
+  public void unusedDepsFlagExposed_warn() throws Exception {
+    scratchUnusedDepsTestFiles();
+    useConfiguration("--experimental_unused_deps=WARN");
+    ConfiguredTarget configuredTarget = getConfiguredTarget("//foo:myrule");
+    StructImpl info =
+        (StructImpl)
+            configuredTarget.get(
+                new StarlarkProvider.Key(
+                    keyForBuild(Label.parseCanonical("//foo:rule.bzl")), "result"));
+    assertThat(((String) info.getValue("unused_deps"))).isEqualTo("warn");
   }
 }

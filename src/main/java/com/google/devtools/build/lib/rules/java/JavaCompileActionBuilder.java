@@ -28,7 +28,7 @@ import com.google.devtools.build.lib.actions.extra.ExtraActionInfo;
 import com.google.devtools.build.lib.actions.extra.JavaCompileInfo;
 import com.google.devtools.build.lib.analysis.RuleContext;
 import com.google.devtools.build.lib.analysis.actions.CustomCommandLine;
-import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode;
+import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.DepsCheckingMode;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
@@ -139,8 +139,8 @@ public final class JavaCompileActionBuilder {
   private Artifact coverageArtifact;
   private ImmutableSet<Artifact> sourceFiles = ImmutableSet.of();
   private ImmutableList<Artifact> sourceJars = ImmutableList.of();
-  private StrictDepsMode strictJavaDeps = StrictDepsMode.ERROR;
-  private StrictDepsMode unusedDeps = StrictDepsMode.ERROR;
+  private DepsCheckingMode strictJavaDeps = DepsCheckingMode.ERROR;
+  private DepsCheckingMode unusedDeps = DepsCheckingMode.ERROR;
   private String fixDepsTool = "add_dep";
   private NestedSet<Artifact> directJars = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
   private NestedSet<Artifact> compileTimeDependencyArtifacts =
@@ -179,7 +179,7 @@ public final class JavaCompileActionBuilder {
 
     // Invariant: if strictJavaDeps and unusedDeps are OFF, then directJars and
     // dependencyArtifacts are ignored
-    if (strictJavaDeps == StrictDepsMode.OFF && unusedDeps == StrictDepsMode.OFF) {
+    if (strictJavaDeps == DepsCheckingMode.OFF && unusedDeps == DepsCheckingMode.OFF) {
       directJars = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
       compileTimeDependencyArtifacts = NestedSetBuilder.emptySet(Order.STABLE_ORDER);
     }
@@ -227,7 +227,7 @@ public final class JavaCompileActionBuilder {
             javacOpts);
 
     // TODO(b/123076347): outputDepsProto should never be null if SJD is enabled
-    if (strictJavaDeps == StrictDepsMode.OFF || outputs.depsProto() == null) {
+    if (strictJavaDeps == DepsCheckingMode.OFF || outputs.depsProto() == null) {
       classpathMode = JavaClasspathMode.OFF;
     }
 
@@ -317,13 +317,13 @@ public final class JavaCompileActionBuilder {
     result.add("--injecting_rule_kind", injectingRuleKind);
     // strict_java_deps controls whether the mapping from jars to targets is
     // written out and whether we try to minimize the compile-time classpath.
-    if (strictJavaDeps != StrictDepsMode.OFF) {
+    if (strictJavaDeps != DepsCheckingMode.OFF) {
       result.add("--strict_java_deps", strictJavaDeps.toString());
     }
-    if (unusedDeps != StrictDepsMode.OFF && unusedDeps != StrictDepsMode.DEFAULT) {
+    if (unusedDeps != DepsCheckingMode.OFF && unusedDeps != DepsCheckingMode.DEFAULT) {
       result.add("--experimental_unused_deps", unusedDeps.toString());
     }
-    if (strictJavaDeps != StrictDepsMode.OFF || unusedDeps != StrictDepsMode.OFF) {
+    if (strictJavaDeps != DepsCheckingMode.OFF || unusedDeps != DepsCheckingMode.OFF) {
       result.addExecPaths("--direct_dependencies", directJars);
     }
     result.add("--experimental_fix_deps_tool", fixDepsTool);
@@ -355,16 +355,16 @@ public final class JavaCompileActionBuilder {
     return this;
   }
 
-  /** Sets the strictness of Java dependency checking, see {@link StrictDepsMode}. */
+  /** Sets the strictness of Java dependency checking, see {@link DepsCheckingMode}. */
   @CanIgnoreReturnValue
-  public JavaCompileActionBuilder setStrictJavaDeps(StrictDepsMode strictDeps) {
+  public JavaCompileActionBuilder setStrictJavaDeps(DepsCheckingMode strictDeps) {
     strictJavaDeps = strictDeps;
     return this;
   }
 
-  /** Sets the unused dependency checking mode, see {@link StrictDepsMode}. */
+  /** Sets the unused dependency checking mode, see {@link DepsCheckingMode}. */
   @CanIgnoreReturnValue
-  public JavaCompileActionBuilder setUnusedDeps(StrictDepsMode unusedDepsMode) {
+  public JavaCompileActionBuilder setUnusedDeps(DepsCheckingMode unusedDepsMode) {
     unusedDeps = unusedDepsMode;
     return this;
   }

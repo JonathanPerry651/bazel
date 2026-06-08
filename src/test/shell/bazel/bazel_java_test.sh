@@ -2531,12 +2531,8 @@ EOF
   expect_log "foo.txt"
 }
 
-function test_unused_deps_enforcement_and_tags() {
-  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
-    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
-    return 0
-  fi
-
+function setup_unused_deps_test_files() {
+  local tags="${1:-}"
   mkdir -p java/unused_a java/unused_b
   cat << 'EOF' > java/unused_a/BUILD
 load("@rules_java//java:java_library.bzl", "java_library")
@@ -2548,36 +2544,82 @@ package unused_a;
 public class A {}
 EOF
 
-  cat << 'EOF' > java/unused_b/BUILD
+  local tags_attr=""
+  if [[ -n "$tags" ]]; then
+    tags_attr="tags = [\"$tags\"],"
+  fi
+
+  cat << EOF > java/unused_b/BUILD
 load("@rules_java//java:java_library.bzl", "java_library")
-java_library(name = "unused_b", srcs = ["B.java"], deps = ["//java/unused_a"])
+java_library(
+    name = "unused_b",
+    srcs = ["B.java"],
+    deps = ["//java/unused_a"],
+    $tags_attr
+)
 EOF
   cat << 'EOF' > java/unused_b/B.java
 package unused_b;
 public class B {}
 EOF
+}
 
-  # 1. Default behaviour: unused_deps is off by default -> build succeeds
+function test_unused_deps_default_off() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_test_files
   bazel build //java/unused_b:unused_b >& $TEST_log || fail "build should succeed by default"
+}
 
-  # 2. Strict behaviour: --experimental_unused_deps=error -> build fails
+function test_unused_deps_global_flag_error() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_test_files
   bazel build //java/unused_b:unused_b --experimental_unused_deps=error >& $TEST_log && fail "build should fail with unused_deps=error"
   expect_log "buildozer 'remove deps //java/unused_a' //java/unused_b"
+}
 
-  # 3. Opt-out per target via tag: unused-deps:off -> build succeeds
-  cat << 'EOF' > java/unused_b/BUILD
-load("@rules_java//java:java_library.bzl", "java_library")
-java_library(name = "unused_b", srcs = ["B.java"], deps = ["//java/unused_a"], tags = ["unused-deps:off"])
-EOF
+function test_unused_deps_global_flag_warn() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_test_files
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=warn >& $TEST_log || fail "build should succeed with unused_deps=warn"
+  expect_log "warning: \[unused-deps\] Dependency"
+}
+
+function test_unused_deps_target_tag_opt_out() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_test_files "unused-deps:off"
   bazel build //java/unused_b:unused_b --experimental_unused_deps=error >& $TEST_log || fail "build should succeed with unused-deps:off tag"
+}
 
-  # 4. Opt-in per target via tag: unused-deps:error -> build fails
-  cat << 'EOF' > java/unused_b/BUILD
-load("@rules_java//java:java_library.bzl", "java_library")
-java_library(name = "unused_b", srcs = ["B.java"], deps = ["//java/unused_a"], tags = ["unused-deps:error"])
-EOF
+function test_unused_deps_target_tag_opt_in_error() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_test_files "unused-deps:error"
   bazel build //java/unused_b:unused_b --experimental_unused_deps=off >& $TEST_log && fail "build should fail with unused-deps:error tag when global flag is off"
   expect_log "buildozer 'remove deps //java/unused_a' //java/unused_b"
+}
+
+function test_unused_deps_target_tag_opt_in_warn() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_test_files "unused-deps:warn"
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=off >& $TEST_log || fail "build should succeed with unused-deps:warn tag"
+  expect_log "warning: \[unused-deps\] Dependency"
 }
 
 run_suite "Java integration tests"

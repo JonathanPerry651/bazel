@@ -19,6 +19,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.devtools.build.lib.rules.java.JavaCompileActionTestHelper.getDirectJars;
 import static com.google.devtools.build.lib.rules.java.JavaCompileActionTestHelper.getJavacArguments;
 
+import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.DepsCheckingMode;
 import com.google.devtools.build.lib.actions.Action;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.CommandAction;
@@ -283,7 +284,24 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
   }
 
   @Test
-  public void testUnusedDepsFlagPropagation() throws Exception {
+  public void testUnusedDeps_defaultOff() throws Exception {
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.OFF);
+  }
+
+  @Test
+  public void testUnusedDeps_flag() throws Exception {
     useConfiguration("--experimental_unused_deps=error");
     scratch.file(
         "java/com/google/test/BUILD",
@@ -297,11 +315,29 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
     JavaCompileAction action =
         (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
     assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
-        .isEqualTo(com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode.ERROR);
+        .isEqualTo(DepsCheckingMode.ERROR);
   }
 
   @Test
-  public void testUnusedDepsTagOptIn() throws Exception {
+  public void testUnusedDeps_flagWarn() throws Exception {
+    useConfiguration("--experimental_unused_deps=warn");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.WARN);
+  }
+
+  @Test
+  public void testUnusedDeps_tagOptIn() throws Exception {
     // Global unused_deps is off by default
     scratch.file(
         "java/com/google/test/BUILD",
@@ -316,11 +352,29 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
     JavaCompileAction action =
         (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
     assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
-        .isEqualTo(com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode.ERROR);
+        .isEqualTo(DepsCheckingMode.ERROR);
   }
 
   @Test
-  public void testUnusedDepsTagOptOut() throws Exception {
+  public void testUnusedDeps_tagWarn() throws Exception {
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            tags = ["unused-deps:warn"],
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.WARN);
+  }
+
+  @Test
+  public void testUnusedDeps_tagOptOut() throws Exception {
     useConfiguration("--experimental_unused_deps=error");
     scratch.file(
         "java/com/google/test/BUILD",
@@ -335,6 +389,6 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
     JavaCompileAction action =
         (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
     assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
-        .isEqualTo(com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode.OFF);
+        .isEqualTo(DepsCheckingMode.OFF);
   }
 }

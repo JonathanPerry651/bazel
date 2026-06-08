@@ -22,7 +22,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.devtools.build.lib.analysis.PlatformOptions;
 import com.google.devtools.build.lib.analysis.config.BuildOptions;
-import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode;
+import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.DepsCheckingMode;
 import com.google.devtools.build.lib.analysis.config.Fragment;
 import com.google.devtools.build.lib.analysis.config.InvalidConfigurationException;
 import com.google.devtools.build.lib.analysis.config.RequiresOptions;
@@ -82,8 +82,8 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
   private final JavaClasspathMode javaClasspath;
   private final boolean inmemoryJdepsFiles;
   private final ImmutableList<String> defaultJvmFlags;
-  private final StrictDepsMode strictJavaDeps;
-  private final StrictDepsMode unusedDeps;
+  private final DepsCheckingMode strictJavaDeps;
+  private final DepsCheckingMode unusedDeps;
   private final String fixDepsTool;
   private final Label proguardBinary;
   private final NamedLabel bytecodeOptimizer;
@@ -185,7 +185,7 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
     return Ascii.toLowerCase(unusedDeps.name());
   }
 
-  public StrictDepsMode getUnusedDeps() {
+  public DepsCheckingMode getUnusedDeps() {
     return unusedDeps;
   }
 

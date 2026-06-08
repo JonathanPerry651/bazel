@@ -41,7 +41,7 @@ import com.google.devtools.build.lib.collect.nestedset.Order;
 import com.google.devtools.build.lib.concurrent.BlazeInterners;
 import com.google.devtools.build.lib.packages.RuleClass.ConfiguredTargetFactory.RuleErrorException;
 import com.google.devtools.build.lib.packages.TargetUtils;
-import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode;
+import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.DepsCheckingMode;
 import com.google.devtools.build.lib.rules.java.JavaConfiguration.JavaClasspathMode;
 import com.google.devtools.build.lib.rules.java.JavaPluginInfo.JavaPluginData;
 import com.google.devtools.build.lib.rules.java.JavaToolchainProvider.JspecifyInfo;
@@ -582,17 +582,16 @@ public final class JavaCompilationHelper {
     return customJavacOpts;
   }
 
-  private StrictDepsMode getUnusedDepsMode() {
-    StrictDepsMode mode = getJavaConfiguration().getUnusedDeps();
+  private DepsCheckingMode getUnusedDepsMode() {
+    DepsCheckingMode mode = getJavaConfiguration().getUnusedDeps();
     if (ruleContext.getRule() != null) {
-      for (String tag : ruleContext.getRule().getRuleTags()) {
-        if (tag.equalsIgnoreCase("unused-deps:off")) {
-          return StrictDepsMode.OFF;
-        } else if (tag.equalsIgnoreCase("unused-deps:warn")) {
-          return StrictDepsMode.WARN;
-        } else if (tag.equalsIgnoreCase("unused-deps:error")) {
-          return StrictDepsMode.ERROR;
-        }
+      java.util.Set<String> tags = ruleContext.getRule().getRuleTags();
+      if (tags.contains("unused-deps:off")) {
+        return DepsCheckingMode.OFF;
+      } else if (tags.contains("unused-deps:warn")) {
+        return DepsCheckingMode.WARN;
+      } else if (tags.contains("unused-deps:error")) {
+        return DepsCheckingMode.ERROR;
       }
     }
     return mode;

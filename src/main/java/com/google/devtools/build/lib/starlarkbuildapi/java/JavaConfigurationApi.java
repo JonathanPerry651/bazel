@@ -54,9 +54,9 @@ public interface JavaConfigurationApi extends StarlarkValue {
   String getStrictJavaDepsName();
 
   @StarlarkMethod(
-      name = "experimental_unused_deps",
+      name = "unused_deps",
       structField = true,
-      doc = "The value of the experimental_unused_deps flag.")
+      doc = "The value of the unused_deps flag.")
   String getUnusedDepsName();
 
   @StarlarkMethod(name = "use_header_compilation", useStarlarkThread = true, documented = false)
