@@ -583,6 +583,8 @@ public final class JavaCompilationHelper {
   }
 
   private DepsCheckingMode getUnusedDepsMode() {
+    // Restrict unused dependency checking to targets in the main repository to avoid
+    // generating warnings or errors for external repositories (e.g. third-party dependencies).
     if (!ruleContext.getLabel().getRepository().isMain()) {
       return DepsCheckingMode.OFF;
     }
