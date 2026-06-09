@@ -57,7 +57,7 @@ import javax.tools.JavaFileObject;
  */
 public final class DependencyModule {
 
-  public static enum StrictJavaDeps {
+  public static enum DepsCheckingMode {
     /** Legacy behavior: Silently allow referencing transitive dependencies. */
     OFF,
     /** Warn about transitive dependencies being used directly. */
@@ -66,6 +66,7 @@ public final class DependencyModule {
     ERROR
   }
 
+
   private static final ImmutableSet<String> SJD_EXEMPT_PROCESSORS =
       ImmutableSet.of(
           // Relax strict deps for dagger-generated code (b/17979436).
@@ -73,8 +74,8 @@ public final class DependencyModule {
           // Relax strict deps for Hilt-generated code (b/21307381).
           "dagger.hilt.processor.internal.root.RootProcessor");
 
-  private final StrictJavaDeps strictJavaDeps;
-  private final StrictJavaDeps unusedDeps;
+  private final DepsCheckingMode strictJavaDeps;
+  private final DepsCheckingMode unusedDeps;
   private final FixTool fixDepsTool;
   private final ImmutableSet<Path> directJars;
   private final boolean strictClasspathMode;
@@ -91,8 +92,8 @@ public final class DependencyModule {
   private final Set<PackageSymbol> packages;
 
   DependencyModule(
-      StrictJavaDeps strictJavaDeps,
-      StrictJavaDeps unusedDeps,
+      DepsCheckingMode strictJavaDeps,
+      DepsCheckingMode unusedDeps,
       FixTool fixDepsTool,
       ImmutableSet<Path> directJars,
       boolean strictClasspathMode,
@@ -180,12 +181,12 @@ public final class DependencyModule {
   }
 
   /** Returns the strict dependency checking (strictJavaDeps) setting. */
-  public StrictJavaDeps getStrictJavaDeps() {
+  public DepsCheckingMode getStrictJavaDeps() {
     return strictJavaDeps;
   }
 
   /** Returns the unused dependency checking setting. */
-  public StrictJavaDeps getUnusedDeps() {
+  public DepsCheckingMode getUnusedDeps() {
     return unusedDeps;
   }
 
@@ -338,8 +339,8 @@ public final class DependencyModule {
   /** Builder for {@link DependencyModule}. */
   public static class Builder {
 
-    private StrictJavaDeps strictJavaDeps = StrictJavaDeps.OFF;
-    private StrictJavaDeps unusedDeps = StrictJavaDeps.OFF;
+    private DepsCheckingMode strictJavaDeps = DepsCheckingMode.OFF;
+    private DepsCheckingMode unusedDeps = DepsCheckingMode.OFF;
     private FixTool fixDepsTool = null;
     private ImmutableSet<Path> directJars = ImmutableSet.of();
     private final Set<Path> depsArtifacts = new HashSet<>();
@@ -392,24 +393,24 @@ public final class DependencyModule {
     /**
      * Sets the strictness level for dependency checking.
      *
-     * @param strictJavaDeps level, as specified by {@link StrictJavaDeps}
+     * @param strictJavaDeps level, as specified by {@link DepsCheckingMode}
      * @return this Builder instance
      */
     @CanIgnoreReturnValue
     public Builder setStrictJavaDeps(String strictJavaDeps) {
-      this.strictJavaDeps = StrictJavaDeps.valueOf(strictJavaDeps);
+      this.strictJavaDeps = DepsCheckingMode.valueOf(strictJavaDeps);
       return this;
     }
 
     /**
      * Sets the strictness level for unused dependency checking.
      *
-     * @param unusedDeps level, as specified by {@link StrictJavaDeps}
+     * @param unusedDeps level, as specified by {@link DepsCheckingMode}
      * @return this Builder instance
      */
     @CanIgnoreReturnValue
     public Builder setUnusedDeps(String unusedDeps) {
-      this.unusedDeps = StrictJavaDeps.valueOf(unusedDeps);
+      this.unusedDeps = DepsCheckingMode.valueOf(unusedDeps);
       return this;
     }
 

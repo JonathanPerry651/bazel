@@ -27,7 +27,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
 import com.google.devtools.build.buildjar.JarOwner;
 import com.google.devtools.build.buildjar.javac.plugins.BlazeJavaCompilerPlugin;
-import com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.StrictJavaDeps;
+import com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.DepsCheckingMode;
 import com.google.devtools.build.buildjar.javac.statistics.BlazeJavacStatistics;
 import com.google.devtools.build.lib.view.proto.Deps;
 import com.google.devtools.build.lib.view.proto.Deps.Dependency;
@@ -203,7 +203,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
   public void finish() {
     implicitDependencyExtractor.accumulate(context, checkingTreeScanner.getSeenClasses());
 
-    if (dependencyModule.getUnusedDeps() != StrictJavaDeps.OFF) {
+    if (dependencyModule.getUnusedDeps() != DepsCheckingMode.OFF) {
       Set<Path> directJars = dependencyModule.directJars();
       Map<Path, Dependency> explicitDeps = dependencyModule.getExplicitDependenciesMap();
       Map<Path, Dependency> implicitDeps = dependencyModule.getImplicitDependenciesMap();
@@ -270,7 +270,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
               // suggest private build labels.
               .map(owner -> owner.withLabel(owner.label().map(label -> canonicalizeTarget(label))))
               .collect(toImmutableSet());
-      if (dependencyModule.getStrictJavaDeps() != StrictJavaDeps.OFF) {
+      if (dependencyModule.getStrictJavaDeps() != DepsCheckingMode.OFF) {
         errWriter.print(
             dependencyModule.getFixMessage().get(canonicalizedMissing, canonicalizedLabel));
         dependencyModule.setHasMissingTargets();

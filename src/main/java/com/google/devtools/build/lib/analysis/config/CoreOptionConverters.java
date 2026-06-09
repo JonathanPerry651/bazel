@@ -322,8 +322,8 @@ public class CoreOptionConverters {
   }
 
   /** Converter for the dependency checking/handling option. */
-  public static class StrictDepsConverter extends EnumConverter<DepsCheckingMode> {
-    public StrictDepsConverter() {
+  public static class DepsCheckingModeConverter extends EnumConverter<DepsCheckingMode> {
+    public DepsCheckingModeConverter() {
       super(DepsCheckingMode.class, "dependency checking level");
     }
   }

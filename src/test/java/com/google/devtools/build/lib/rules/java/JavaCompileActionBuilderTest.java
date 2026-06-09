@@ -338,7 +338,7 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
 
   @Test
   public void testUnusedDeps_tagOptIn() throws Exception {
-    // Global unused_deps is off by default
+    useConfiguration("--experimental_unused_deps=off");
     scratch.file(
         "java/com/google/test/BUILD",
         """
@@ -357,6 +357,7 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
 
   @Test
   public void testUnusedDeps_tagWarn() throws Exception {
+    useConfiguration("--experimental_unused_deps=off");
     scratch.file(
         "java/com/google/test/BUILD",
         """

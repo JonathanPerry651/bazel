@@ -105,7 +105,7 @@ public class ProtoConfiguration extends Fragment implements ProtoConfigurationAp
     @Option(
         name = "strict_proto_deps",
         defaultValue = "error",
-        converter = CoreOptionConverters.StrictDepsConverter.class,
+        converter = CoreOptionConverters.DepsCheckingModeConverter.class,
         documentationCategory = OptionDocumentationCategory.INPUT_STRICTNESS,
         effectTags = {OptionEffectTag.BUILD_FILE_SEMANTICS, OptionEffectTag.EAGERNESS_TO_EXIT},
         metadataTags = {OptionMetadataTag.INCOMPATIBLE_CHANGE},
@@ -117,7 +117,7 @@ public class ProtoConfiguration extends Fragment implements ProtoConfigurationAp
     @Option(
         name = "strict_public_imports",
         defaultValue = "off",
-        converter = CoreOptionConverters.StrictDepsConverter.class,
+        converter = CoreOptionConverters.DepsCheckingModeConverter.class,
         documentationCategory = OptionDocumentationCategory.INPUT_STRICTNESS,
         effectTags = {OptionEffectTag.BUILD_FILE_SEMANTICS, OptionEffectTag.EAGERNESS_TO_EXIT},
         metadataTags = {OptionMetadataTag.INCOMPATIBLE_CHANGE},

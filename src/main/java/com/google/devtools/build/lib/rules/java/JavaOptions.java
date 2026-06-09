@@ -18,7 +18,7 @@ import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.LabelC
 import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.LabelListConverter;
 import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.DepsCheckingMode;
 import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.LabelMapConverter;
-import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsConverter;
+import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.DepsCheckingModeConverter;
 import com.google.devtools.build.lib.analysis.config.FragmentOptions;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.rules.java.JavaConfiguration.JavaClasspathMode;
@@ -174,7 +174,7 @@ public abstract class JavaOptions extends FragmentOptions {
       name = "experimental_strict_java_deps",
       allowMultiple = false,
       defaultValue = "default",
-      converter = StrictDepsConverter.class,
+      converter = DepsCheckingModeConverter.class,
       documentationCategory = OptionDocumentationCategory.INPUT_STRICTNESS,
       effectTags = {OptionEffectTag.BUILD_FILE_SEMANTICS, OptionEffectTag.EAGERNESS_TO_EXIT},
       help =
@@ -187,7 +187,7 @@ public abstract class JavaOptions extends FragmentOptions {
       name = "experimental_unused_deps",
       allowMultiple = false,
       defaultValue = "off",
-      converter = StrictDepsConverter.class,
+      converter = DepsCheckingModeConverter.class,
       documentationCategory = OptionDocumentationCategory.INPUT_STRICTNESS,
       effectTags = {OptionEffectTag.BUILD_FILE_SEMANTICS, OptionEffectTag.EAGERNESS_TO_EXIT},
       help =
