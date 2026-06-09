@@ -399,9 +399,9 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
     scratch.appendFile(
         "MODULE.bazel",
         "bazel_dep(name = 'external_repo')",
-        "local_path_override(module_name = 'external_repo', path = '/external_repo')");
-    scratch.file("/external_repo/MODULE.bazel", "module(name = 'external_repo')");
-    scratch.file("/external_repo/BUILD",
+        "local_path_override(module_name = 'external_repo', path = 'external_repo')");
+    scratch.file("external_repo/MODULE.bazel", "module(name = 'external_repo')");
+    scratch.file("external_repo/BUILD",
         """
         load("@rules_java//java:defs.bzl", "java_library")
         java_library(
