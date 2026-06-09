@@ -392,4 +392,28 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
     assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
         .isEqualTo(DepsCheckingMode.OFF);
   }
+
+  @Test
+  public void testUnusedDeps_externalRepository() throws Exception {
+    useConfiguration("--experimental_unused_deps=error");
+    scratch.appendFile(
+        "MODULE.bazel",
+        "bazel_dep(name = 'external_repo')",
+        "local_path_override(module_name = 'external_repo', path = '/external_repo')");
+    scratch.file("/external_repo/MODULE.bazel", "module(name = 'external_repo')");
+    scratch.file("/external_repo/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "lib",
+            srcs = ["Lib.java"],
+        )
+        """);
+    invalidatePackages();
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("@@external_repo+//:liblib.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.OFF);
+  }
 }
+
