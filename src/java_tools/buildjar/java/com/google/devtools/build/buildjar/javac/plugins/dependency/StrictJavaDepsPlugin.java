@@ -27,7 +27,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
 import com.google.devtools.build.buildjar.JarOwner;
 import com.google.devtools.build.buildjar.javac.plugins.BlazeJavaCompilerPlugin;
-import com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.DepsCheckingMode;
+import com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.StrictDepsMode;
+import com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.UnusedDepsMode;
 import com.google.devtools.build.buildjar.javac.statistics.BlazeJavacStatistics;
 import com.google.devtools.build.lib.view.proto.Deps;
 import com.google.devtools.build.lib.view.proto.Deps.Dependency;
@@ -203,50 +204,51 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
   public void finish() {
     implicitDependencyExtractor.accumulate(context, checkingTreeScanner.getSeenClasses());
 
-    if (dependencyModule.getUnusedDeps() != DepsCheckingMode.OFF) {
-      Set<Path> directJars = dependencyModule.directJars();
-      Map<Path, Dependency> explicitDeps = dependencyModule.getExplicitDependenciesMap();
-      Map<Path, Dependency> implicitDeps = dependencyModule.getImplicitDependenciesMap();
-      String targetLabel =
-          dependencyModule.getTargetLabel() == null
-              ? "<target>"
-              : canonicalizeTarget(dependencyModule.getTargetLabel());
+    if (dependencyModule.getUnusedDeps() != UnusedDepsMode.OFF) {
+      Optional<String> targetLabel =
+          Optional.ofNullable(dependencyModule.getTargetLabel())
+              .map(StrictJavaDepsPlugin::canonicalizeTarget);
 
-      ImmutableSet<String> declaredDeps = dependencyModule.getTargetDeclaredDeps();
-      if (!declaredDeps.isEmpty()) {
-        Set<String> usedLabels = new HashSet<>();
-        for (Path jar : explicitDeps.keySet()) {
-          JarOwner owner = readJarOwnerFromManifest(NonPlatformJar.forClasspathJar(jar));
-          String jarLabel = owner.label().orElseGet(jar::toString);
-          usedLabels.add(normalizeLabelForComparison(jarLabel));
-        }
-        for (Map.Entry<Path, Dependency> entry : implicitDeps.entrySet()) {
-          if (entry.getValue().getKind() != Dependency.Kind.INCOMPLETE) {
-            Path jar = entry.getKey();
+      if (targetLabel.isPresent()) {
+        Set<Path> directJars = dependencyModule.directJars();
+        Map<Path, Dependency> explicitDeps = dependencyModule.getExplicitDependenciesMap();
+        Map<Path, Dependency> implicitDeps = dependencyModule.getImplicitDependenciesMap();
+        ImmutableSet<String> declaredDeps = dependencyModule.getTargetDeclaredDeps();
+        if (!declaredDeps.isEmpty()) {
+          Set<String> usedLabels = new HashSet<>();
+          for (Path jar : explicitDeps.keySet()) {
             JarOwner owner = readJarOwnerFromManifest(NonPlatformJar.forClasspathJar(jar));
             String jarLabel = owner.label().orElseGet(jar::toString);
             usedLabels.add(normalizeLabelForComparison(jarLabel));
           }
-        }
+          for (Map.Entry<Path, Dependency> entry : implicitDeps.entrySet()) {
+            if (entry.getValue().getKind() != Dependency.Kind.INCOMPLETE) {
+              Path jar = entry.getKey();
+              JarOwner owner = readJarOwnerFromManifest(NonPlatformJar.forClasspathJar(jar));
+              String jarLabel = owner.label().orElseGet(jar::toString);
+              usedLabels.add(normalizeLabelForComparison(jarLabel));
+            }
+          }
 
-        for (String dep : declaredDeps) {
-          String normalizedDep = normalizeLabelForComparison(dep);
-          if (!usedLabels.contains(normalizedDep)) {
-            String message = String.format(
-                "[unused-deps] Dependency '%s' is declared as a direct dependency but is not referenced in jdeps.\n"
-                    + "\033[35m\033[1m ** You can use the following buildozer command:\033[0m \n"
-                    + "buildozer 'remove deps %s' %s\n",
-                dep, dep, targetLabel);
+          for (String dep : declaredDeps) {
+            String normalizedDep = normalizeLabelForComparison(dep);
+            if (!usedLabels.contains(normalizedDep)) {
+              String message = String.format(
+                  "[unused-deps] Dependency '%s' is declared as a direct dependency but is not referenced in jdeps.\n"
+                      + "\033[35m\033[1m ** You can use the following buildozer command:\033[0m \n"
+                      + "buildozer 'remove deps %s' %s\n",
+                  dep, canonicalizeTarget(dep), targetLabel.get());
 
-            switch (dependencyModule.getUnusedDeps()) {
-              case ERROR:
-                log.error(Position.NOPOS, Errors.ProcMessager(message));
-                break;
-              case WARN:
-                log.warning(Position.NOPOS, Warnings.ProcMessager(message));
-                break;
-              case OFF:
-                break;
+              switch (dependencyModule.getUnusedDeps()) {
+                case ERROR:
+                  log.error(Position.NOPOS, Errors.ProcMessager(message));
+                  break;
+                case WARN:
+                  log.warning(Position.NOPOS, Warnings.ProcMessager(message));
+                  break;
+                case OFF:
+                  break;
+              }
             }
           }
         }
@@ -284,7 +286,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
               // suggest private build labels.
               .map(owner -> owner.withLabel(owner.label().map(label -> canonicalizeTarget(label))))
               .collect(toImmutableSet());
-      if (dependencyModule.getStrictJavaDeps() != DepsCheckingMode.OFF) {
+      if (dependencyModule.getStrictJavaDeps() != StrictDepsMode.OFF) {
         errWriter.print(
             dependencyModule.getFixMessage().get(canonicalizedMissing, canonicalizedLabel));
         dependencyModule.setHasMissingTargets();
@@ -373,7 +375,6 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
       return seenClasses;
     }
 
-    /** Checks an AST node denoting a class type against direct/transitive dependencies. */
     private void checkTypeLiteral(Symbol sym) {
       if (sym == null || sym.kind != Kinds.Kind.TYP) {
         return;
@@ -387,10 +388,6 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
       }
     }
 
-    /**
-     * Marks the provided dependency as a direct/explicit dependency. Additionally, if
-     * strict_java_deps is enabled, it emits a [strict] compiler warning/error.
-     */
     private void collectExplicitDependency(NonPlatformJar jar, Symbol sym) {
       // Does it make sense to emit a warning/error for this pair of (type, owner)?
       // We want to emit only one error/warning per owner.
@@ -706,6 +703,16 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
     return target;
   }
 
+  /**
+   * Normalizes a target label for comparison by stripping any repository name prefix (i.e.
+   * returning the part starting with "//") and canonicalizing the target label format (e.g.,
+   * removing the target name if it matches the package name). This ensures that labels from
+   * different repository contexts or formatting styles can be compared correctly during unused
+   * dependency checking.
+   *
+   * @param label the target label to normalize, which may include a repository name prefix
+   * @return the normalized label, or an empty string if the label is null
+   */
   private static String normalizeLabelForComparison(String label) {
     if (label == null) {
       return "";

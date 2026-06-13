@@ -2698,7 +2698,7 @@ public class A {
 EOF
 
   bazel build //java/unused_exp_a:unused_exp_a --experimental_unused_deps=error >& $TEST_log && fail "build should fail when A uses exported C but not B directly"
-  expect_log "buildozer 'remove deps //java/unused_exp_b:unused_exp_b' //java/unused_exp_a"
+  expect_log "buildozer 'remove deps //java/unused_exp_b' //java/unused_exp_a"
 }
 
 function test_unused_deps_exports_uses_neither() {
@@ -2722,7 +2722,70 @@ public class A {}
 EOF
 
   bazel build //java/unused_exp_a:unused_exp_a --experimental_unused_deps=error >& $TEST_log && fail "build should fail when A uses neither B nor C"
-  expect_log "buildozer 'remove deps //java/unused_exp_b:unused_exp_b' //java/unused_exp_a"
+  expect_log "buildozer 'remove deps //java/unused_exp_b' //java/unused_exp_a"
+}
+
+function test_unused_deps_external_repo_normalization() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+
+  cat >> MODULE.bazel <<'EOF'
+local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+local_repository(
+  name = "other_unused_repo",
+  path = "other_unused_repo",
+)
+EOF
+
+  mkdir -p other_unused_repo
+  touch other_unused_repo/REPO.bazel
+  mkdir -p other_unused_repo/pkg
+
+  cat > other_unused_repo/pkg/BUILD.bazel <<'EOF'
+load("@rules_java//java:java_library.bzl", "java_library")
+package(default_visibility=['//visibility:public'])
+java_library(
+    name = "lib",
+    srcs = ["LibClass.java"],
+)
+EOF
+
+  cat > other_unused_repo/pkg/LibClass.java <<'EOF'
+package pkg;
+public class LibClass {}
+EOF
+
+  mkdir -p java/unused_ext
+  cat > java/unused_ext/BUILD <<'EOF'
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(
+    name = "unused_ext",
+    srcs = ["MainClass.java"],
+    deps = ["@other_unused_repo//pkg:lib"],
+)
+EOF
+
+  cat > java/unused_ext/MainClass.java <<'EOF'
+package unused_ext;
+import pkg.LibClass;
+public class MainClass {
+  public LibClass getLib() {
+    return new LibClass();
+  }
+}
+EOF
+
+  bazel build //java/unused_ext:unused_ext --experimental_unused_deps=error >& $TEST_log || fail "build should succeed since external dependency is used"
+
+  cat > java/unused_ext/MainClass.java <<'EOF'
+package unused_ext;
+public class MainClass {}
+EOF
+
+  bazel build //java/unused_ext:unused_ext --experimental_unused_deps=error >& $TEST_log && fail "build should fail since external dependency is not used"
+  expect_log "buildozer 'remove deps @+local_repository+other_unused_repo//pkg:lib' //java/unused_ext"
 }
 
 run_suite "Java integration tests"
