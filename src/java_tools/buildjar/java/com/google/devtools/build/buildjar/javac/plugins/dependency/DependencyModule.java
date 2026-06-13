@@ -90,6 +90,7 @@ public final class DependencyModule {
   private final FixMessage fixMessage;
   private final Set<String> exemptGenerators;
   private final Set<PackageSymbol> packages;
+  private final ImmutableSet<String> targetDeclaredDeps;
 
   DependencyModule(
       DepsCheckingMode strictJavaDeps,
@@ -102,7 +103,8 @@ public final class DependencyModule {
       String targetLabel,
       Path outputDepsProtoFile,
       FixMessage fixMessage,
-      Set<String> exemptGenerators) {
+      Set<String> exemptGenerators,
+      ImmutableSet<String> targetDeclaredDeps) {
     this.strictJavaDeps = strictJavaDeps;
     this.unusedDeps = unusedDeps;
     this.fixDepsTool = fixDepsTool;
@@ -117,6 +119,11 @@ public final class DependencyModule {
     this.fixMessage = fixMessage;
     this.exemptGenerators = exemptGenerators;
     this.packages = new HashSet<>();
+    this.targetDeclaredDeps = targetDeclaredDeps;
+  }
+
+  public ImmutableSet<String> getTargetDeclaredDeps() {
+    return targetDeclaredDeps;
   }
 
   /** Returns a plugin to be enabled in the compiler. */
@@ -350,6 +357,7 @@ public final class DependencyModule {
     private boolean strictClasspathMode = false;
     private FixMessage fixMessage = new DefaultFixMessage();
     private final Set<String> exemptGenerators = new LinkedHashSet<>(SJD_EXEMPT_PROCESSORS);
+    private final Set<String> targetDeclaredDeps = new LinkedHashSet<>();
 
     private static class DefaultFixMessage implements FixMessage {
       @Override
@@ -387,7 +395,8 @@ public final class DependencyModule {
           targetLabel,
           outputDepsProtoFile,
           fixMessage,
-          exemptGenerators);
+          exemptGenerators,
+          ImmutableSet.copyOf(targetDeclaredDeps));
     }
 
     /**
@@ -509,6 +518,12 @@ public final class DependencyModule {
     @CanIgnoreReturnValue
     public Builder addExemptGenerator(String exemptGenerator) {
       exemptGenerators.add(exemptGenerator);
+      return this;
+    }
+
+    @CanIgnoreReturnValue
+    public Builder addTargetDeclaredDeps(Collection<String> targetDeclaredDeps) {
+      this.targetDeclaredDeps.addAll(targetDeclaredDeps);
       return this;
     }
   }

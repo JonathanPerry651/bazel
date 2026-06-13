@@ -180,6 +180,7 @@ public final class JavaLibraryBuildRequest {
     if (optionsParser.getTargetLabel() != null) {
       depsBuilder.setTargetLabel(optionsParser.getTargetLabel());
     }
+    depsBuilder.addTargetDeclaredDeps(optionsParser.getTargetDeclaredDeps());
     this.dependencyModule = depsBuilder.build();
     this.sourceGenDir =
         deriveDirectory(optionsParser.getTargetLabel(), optionsParser.getOutputJar(), "_sources");

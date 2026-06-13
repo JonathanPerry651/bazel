@@ -2622,4 +2622,107 @@ function test_unused_deps_target_tag_opt_in_warn() {
   expect_log "warning: \[unused-deps\] Dependency"
 }
 
+function setup_unused_deps_exports_test_files() {
+  mkdir -p java/unused_exp_a java/unused_exp_b java/unused_exp_c
+  
+  cat << 'EOF' > java/unused_exp_c/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+package(default_visibility=['//visibility:public'])
+java_library(name = "unused_exp_c", srcs = ["C.java"])
+EOF
+  cat << 'EOF' > java/unused_exp_c/C.java
+package unused_exp_c;
+public class C {}
+EOF
+
+  cat << 'EOF' > java/unused_exp_b/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+package(default_visibility=['//visibility:public'])
+java_library(
+    name = "unused_exp_b",
+    srcs = ["B.java"],
+    exports = ["//java/unused_exp_c"],
+)
+EOF
+  cat << 'EOF' > java/unused_exp_b/B.java
+package unused_exp_b;
+public class B {}
+EOF
+}
+
+function test_unused_deps_exports_uses_b_not_c() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_exports_test_files
+  
+  cat << 'EOF' > java/unused_exp_a/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(
+    name = "unused_exp_a",
+    srcs = ["A.java"],
+    deps = ["//java/unused_exp_b"],
+)
+EOF
+  cat << 'EOF' > java/unused_exp_a/A.java
+package unused_exp_a;
+public class A {
+  public unused_exp_b.B b;
+}
+EOF
+
+  bazel build //java/unused_exp_a:unused_exp_a --experimental_unused_deps=error >& $TEST_log || fail "build should succeed when A uses B directly"
+}
+
+function test_unused_deps_exports_uses_c_not_b() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_exports_test_files
+  
+  cat << 'EOF' > java/unused_exp_a/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(
+    name = "unused_exp_a",
+    srcs = ["A.java"],
+    deps = ["//java/unused_exp_b"],
+)
+EOF
+  cat << 'EOF' > java/unused_exp_a/A.java
+package unused_exp_a;
+public class A {
+  public unused_exp_c.C c;
+}
+EOF
+
+  bazel build //java/unused_exp_a:unused_exp_a --experimental_unused_deps=error >& $TEST_log && fail "build should fail when A uses exported C but not B directly"
+  expect_log "buildozer 'remove deps //java/unused_exp_b:unused_exp_b' //java/unused_exp_a"
+}
+
+function test_unused_deps_exports_uses_neither() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_exports_test_files
+  
+  cat << 'EOF' > java/unused_exp_a/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(
+    name = "unused_exp_a",
+    srcs = ["A.java"],
+    deps = ["//java/unused_exp_b"],
+)
+EOF
+  cat << 'EOF' > java/unused_exp_a/A.java
+package unused_exp_a;
+public class A {}
+EOF
+
+  bazel build //java/unused_exp_a:unused_exp_a --experimental_unused_deps=error >& $TEST_log && fail "build should fail when A uses neither B nor C"
+  expect_log "buildozer 'remove deps //java/unused_exp_b:unused_exp_b' //java/unused_exp_a"
+}
+
 run_suite "Java integration tests"

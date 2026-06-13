@@ -29,6 +29,7 @@ import com.google.devtools.build.lib.actions.ParameterFile;
 import com.google.devtools.build.lib.analysis.AnalysisEnvironment;
 import com.google.devtools.build.lib.analysis.FilesToRunProvider;
 import com.google.devtools.build.lib.analysis.RuleContext;
+import com.google.devtools.build.lib.analysis.TransitiveInfoCollection;
 import com.google.devtools.build.lib.analysis.actions.CustomCommandLine;
 import com.google.devtools.build.lib.analysis.actions.LazyWritePathsFileAction;
 import com.google.devtools.build.lib.analysis.actions.SpawnAction;
@@ -40,6 +41,7 @@ import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
 import com.google.devtools.build.lib.concurrent.BlazeInterners;
 import com.google.devtools.build.lib.packages.RuleClass.ConfiguredTargetFactory.RuleErrorException;
+import com.google.devtools.build.lib.packages.BuildType;
 import com.google.devtools.build.lib.packages.TargetUtils;
 import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.DepsCheckingMode;
 import com.google.devtools.build.lib.rules.java.JavaConfiguration.JavaClasspathMode;
@@ -296,6 +298,13 @@ public final class JavaCompilationHelper {
     builder.setExtraData(computePerPackageData(ruleContext, javaToolchain));
     builder.setStrictJavaDeps(attributes.getStrictJavaDeps());
     builder.setUnusedDeps(getUnusedDepsMode());
+    if (ruleContext.getRule() != null
+        && ruleContext.getRule().isAttrDefined("deps", BuildType.LABEL_LIST)) {
+      for (TransitiveInfoCollection dep :
+          ruleContext.getPrerequisites("deps")) {
+        builder.addTargetDeclaredDep(dep.getLabel().toString());
+      }
+    }
     semantics
         .getFixDepsTool(ruleContext.getRule(), getJavaConfiguration())
         .ifPresent(builder::setFixDepsTool);

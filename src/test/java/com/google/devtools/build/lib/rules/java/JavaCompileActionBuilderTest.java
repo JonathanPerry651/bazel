@@ -415,5 +415,30 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
     assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
         .isEqualTo(DepsCheckingMode.OFF);
   }
+
+  @Test
+  public void testTargetDeclaredDepsPropagated() throws Exception {
+    useConfiguration("--experimental_unused_deps=error");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "b",
+            srcs = ["B.java"],
+        )
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            deps = [":b"],
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    List<String> command = new ArrayList<>(getJavacArguments(action));
+    int targetDeclaredDepsIndex = command.indexOf("--target_declared_deps");
+    assertThat(targetDeclaredDepsIndex).isNotEqualTo(-1);
+    assertThat(command.get(targetDeclaredDepsIndex + 1)).endsWith(":b");
+  }
 }
 

@@ -41,7 +41,10 @@ import com.google.devtools.build.lib.rules.java.JavaConfiguration.JavaClasspathM
 import com.google.devtools.build.lib.rules.java.JavaPluginInfo.JavaPluginData;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -141,6 +144,7 @@ public final class JavaCompileActionBuilder {
   private ImmutableList<Artifact> sourceJars = ImmutableList.of();
   private DepsCheckingMode strictJavaDeps = DepsCheckingMode.ERROR;
   private DepsCheckingMode unusedDeps = DepsCheckingMode.ERROR;
+  private final List<String> targetDeclaredDeps = new ArrayList<>();
   private String fixDepsTool = "add_dep";
   private NestedSet<Artifact> directJars = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
   private NestedSet<Artifact> compileTimeDependencyArtifacts =
@@ -323,6 +327,9 @@ public final class JavaCompileActionBuilder {
     if (unusedDeps != DepsCheckingMode.OFF && unusedDeps != DepsCheckingMode.DEFAULT) {
       result.add("--experimental_unused_deps", unusedDeps.toString());
     }
+    if (unusedDeps != DepsCheckingMode.OFF && !targetDeclaredDeps.isEmpty()) {
+      result.addAll("--target_declared_deps", targetDeclaredDeps);
+    }
     if (strictJavaDeps != DepsCheckingMode.OFF || unusedDeps != DepsCheckingMode.OFF) {
       result.addExecPaths("--direct_dependencies", directJars);
     }
@@ -366,6 +373,18 @@ public final class JavaCompileActionBuilder {
   @CanIgnoreReturnValue
   public JavaCompileActionBuilder setUnusedDeps(DepsCheckingMode unusedDepsMode) {
     unusedDeps = unusedDepsMode;
+    return this;
+  }
+
+  @CanIgnoreReturnValue
+  public JavaCompileActionBuilder addTargetDeclaredDep(String label) {
+    this.targetDeclaredDeps.add(label);
+    return this;
+  }
+
+  @CanIgnoreReturnValue
+  public JavaCompileActionBuilder addTargetDeclaredDeps(Collection<String> labels) {
+    this.targetDeclaredDeps.addAll(labels);
     return this;
   }
 

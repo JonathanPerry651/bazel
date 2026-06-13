@@ -212,28 +212,42 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
               ? "<target>"
               : canonicalizeTarget(dependencyModule.getTargetLabel());
 
-      for (Path directJar : directJars) {
-        boolean isImplicitlyUsed = implicitDeps.containsKey(directJar)
-            && implicitDeps.get(directJar).getKind() != Dependency.Kind.INCOMPLETE;
-        if (!explicitDeps.containsKey(directJar) && !isImplicitlyUsed) {
-          JarOwner owner = readJarOwnerFromManifest(NonPlatformJar.forClasspathJar(directJar));
-          String label = owner.label().isPresent()
-              ? canonicalizeTarget(owner.label().get())
-              : directJar.toString();
-          String message = String.format(
-              "[unused-deps] Dependency '%s' (from jar '%s') is declared as a direct dependency but is not referenced in jdeps.\n"
-                  + "\033[35m\033[1m ** You can use the following buildozer command:\033[0m \n"
-                  + "buildozer 'remove deps %s' %s\n",
-              label, directJar, label, targetLabel);
-          switch (dependencyModule.getUnusedDeps()) {
-            case ERROR:
-              log.error(Position.NOPOS, Errors.ProcMessager(message));
-              break;
-            case WARN:
-              log.warning(Position.NOPOS, Warnings.ProcMessager(message));
-              break;
-            case OFF:
-              break;
+      ImmutableSet<String> declaredDeps = dependencyModule.getTargetDeclaredDeps();
+      if (!declaredDeps.isEmpty()) {
+        Set<String> usedLabels = new HashSet<>();
+        for (Path jar : explicitDeps.keySet()) {
+          JarOwner owner = readJarOwnerFromManifest(NonPlatformJar.forClasspathJar(jar));
+          String jarLabel = owner.label().orElseGet(jar::toString);
+          usedLabels.add(normalizeLabelForComparison(jarLabel));
+        }
+        for (Map.Entry<Path, Dependency> entry : implicitDeps.entrySet()) {
+          if (entry.getValue().getKind() != Dependency.Kind.INCOMPLETE) {
+            Path jar = entry.getKey();
+            JarOwner owner = readJarOwnerFromManifest(NonPlatformJar.forClasspathJar(jar));
+            String jarLabel = owner.label().orElseGet(jar::toString);
+            usedLabels.add(normalizeLabelForComparison(jarLabel));
+          }
+        }
+
+        for (String dep : declaredDeps) {
+          String normalizedDep = normalizeLabelForComparison(dep);
+          if (!usedLabels.contains(normalizedDep)) {
+            String message = String.format(
+                "[unused-deps] Dependency '%s' is declared as a direct dependency but is not referenced in jdeps.\n"
+                    + "\033[35m\033[1m ** You can use the following buildozer command:\033[0m \n"
+                    + "buildozer 'remove deps %s' %s\n",
+                dep, dep, targetLabel);
+
+            switch (dependencyModule.getUnusedDeps()) {
+              case ERROR:
+                log.error(Position.NOPOS, Errors.ProcMessager(message));
+                break;
+              case WARN:
+                log.warning(Position.NOPOS, Warnings.ProcMessager(message));
+                break;
+              case OFF:
+                break;
+            }
           }
         }
       }
@@ -690,6 +704,17 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
       return target.substring(0, colonIndex);
     }
     return target;
+  }
+
+  private static String normalizeLabelForComparison(String label) {
+    if (label == null) {
+      return "";
+    }
+    int doubleSlashIndex = label.indexOf("//");
+    if (doubleSlashIndex != -1) {
+      label = label.substring(doubleSlashIndex);
+    }
+    return canonicalizeTarget(label);
   }
 
   /** Returns true if the given classSymbol corresponds to one of the sources being compiled. */
