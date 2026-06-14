@@ -524,6 +524,7 @@ public interface JavaCommonApi<
         @Param(name = "enable_direct_classpath", defaultValue = "True", named = true),
         @Param(name = "additional_inputs", defaultValue = "[]", named = true),
         @Param(name = "additional_outputs", defaultValue = "[]", named = true),
+        @Param(name = "unused_deps_mode", defaultValue = "\"default\"", named = true),
       })
   void createCompilationAction(
       StarlarkRuleContextT ctx,
@@ -553,7 +554,8 @@ public interface JavaCommonApi<
       boolean enableJSpecify,
       boolean enableDirectClasspath,
       Sequence<?> additionalInputs,
-      Sequence<?> additionalOutputs)
+      Sequence<?> additionalOutputs,
+      String unusedDepsMode)
       throws EvalException,
           TypeException,
           RuleErrorException,

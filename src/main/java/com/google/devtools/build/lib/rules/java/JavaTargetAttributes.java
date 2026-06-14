@@ -68,6 +68,8 @@ public class JavaTargetAttributes {
     /** @see {@link #setStrictJavaDeps}. */
     private DepsCheckingMode strictJavaDeps = DepsCheckingMode.ERROR;
 
+    private DepsCheckingMode unusedDepsMode = DepsCheckingMode.DEFAULT;
+
     private final NestedSetBuilder<Artifact> directJarsBuilder = NestedSetBuilder.naiveLinkOrder();
     private final NestedSetBuilder<Artifact> headerCompilationDirectJarsBuilder =
         NestedSetBuilder.naiveLinkOrder();
@@ -178,6 +180,14 @@ public class JavaTargetAttributes {
       return this;
     }
 
+    /** Sets the unused dependency checking mode. */
+    @CanIgnoreReturnValue
+    public Builder setUnusedDepsMode(DepsCheckingMode unusedDeps) {
+      Preconditions.checkArgument(!built);
+      unusedDepsMode = unusedDeps;
+      return this;
+    }
+
     /**
      * In tandem with strictJavaDeps, directJars represents a subset of the compile-time classpath
      * jars that were provided by direct dependencies. When strictJavaDeps is OFF, there is no need
@@ -272,7 +282,8 @@ public class JavaTargetAttributes {
           compileTimeDependencyArtifacts.build(),
           targetLabel,
           injectingRuleKind,
-          strictJavaDeps);
+          strictJavaDeps,
+          unusedDepsMode);
     }
 
     // TODO(bazel-team): delete the following method - users should use the built
@@ -314,6 +325,7 @@ public class JavaTargetAttributes {
   @Nullable private final String injectingRuleKind;
 
   private final DepsCheckingMode strictJavaDeps;
+  private final DepsCheckingMode unusedDepsMode;
 
   /** Constructor of JavaTargetAttributes. */
   private JavaTargetAttributes(
@@ -332,7 +344,8 @@ public class JavaTargetAttributes {
       NestedSet<Artifact> compileTimeDependencyArtifacts,
       Label targetLabel,
       @Nullable String injectingRuleKind,
-      DepsCheckingMode strictJavaDeps) {
+      DepsCheckingMode strictJavaDeps,
+      DepsCheckingMode unusedDepsMode) {
     this.sourceFiles = sourceFiles;
     this.directJars = directJars;
     this.headerCompilationDirectJars = headerCompilationDirectJars;
@@ -349,6 +362,7 @@ public class JavaTargetAttributes {
     this.targetLabel = targetLabel;
     this.injectingRuleKind = injectingRuleKind;
     this.strictJavaDeps = strictJavaDeps;
+    this.unusedDepsMode = unusedDepsMode;
   }
 
   JavaTargetAttributes appendAdditionalTransitiveClassPathEntries(
@@ -373,7 +387,8 @@ public class JavaTargetAttributes {
         compileTimeDependencyArtifacts,
         targetLabel,
         injectingRuleKind,
-        strictJavaDeps);
+        strictJavaDeps,
+        unusedDepsMode);
   }
 
   public NestedSet<Artifact> getDirectJars() {
@@ -439,5 +454,10 @@ public class JavaTargetAttributes {
 
   public DepsCheckingMode getStrictJavaDeps() {
     return strictJavaDeps;
+  }
+
+  /** Returns the unused dependency checking mode. */
+  public DepsCheckingMode getUnusedDepsMode() {
+    return unusedDepsMode;
   }
 }

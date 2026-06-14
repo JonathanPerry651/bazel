@@ -440,5 +440,101 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
     assertThat(targetDeclaredDepsIndex).isNotEqualTo(-1);
     assertThat(command.get(targetDeclaredDepsIndex + 1)).endsWith(":b");
   }
+
+  @Test
+  public void testUnusedDepsMode_attributeError() throws Exception {
+    useConfiguration("--experimental_unused_deps=off");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            unused_deps_mode = "error",
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.ERROR);
+  }
+
+  @Test
+  public void testUnusedDepsMode_attributeWarn() throws Exception {
+    useConfiguration("--experimental_unused_deps=off");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            unused_deps_mode = "warn",
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.WARN);
+  }
+
+  @Test
+  public void testUnusedDepsMode_attributeOff() throws Exception {
+    useConfiguration("--experimental_unused_deps=error");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            unused_deps_mode = "off",
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.OFF);
+  }
+
+  @Test
+  public void testUnusedDepsMode_attributeDefault() throws Exception {
+    useConfiguration("--experimental_unused_deps=error");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            unused_deps_mode = "default",
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.ERROR);
+  }
+
+  @Test
+  public void testUnusedDepsMode_attributePriorityOverTags() throws Exception {
+    useConfiguration("--experimental_unused_deps=off");
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library")
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            tags = ["unused-deps:off"],
+            unused_deps_mode = "error",
+        )
+        """);
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    assertThat(JavaCompileActionTestHelper.getUnusedDepsMode(action))
+        .isEqualTo(DepsCheckingMode.ERROR);
+  }
 }
 

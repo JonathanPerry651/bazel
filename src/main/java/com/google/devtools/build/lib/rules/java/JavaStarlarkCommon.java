@@ -85,6 +85,20 @@ public class JavaStarlarkCommon
     }
   }
 
+  private static DepsCheckingMode getUnusedDepsMode(String unusedDepsMode) {
+    switch (unusedDepsMode) {
+      case "OFF":
+        return DepsCheckingMode.OFF;
+      case "ERROR":
+        return DepsCheckingMode.ERROR;
+      case "WARN":
+        return DepsCheckingMode.WARN;
+      case "DEFAULT":
+      default:
+        return DepsCheckingMode.DEFAULT;
+    }
+  }
+
   private void checkJavaToolchainIsDeclaredOnRule(RuleContext ruleContext)
       throws EvalException, LabelSyntaxException {
     ToolchainInfo toolchainInfo =
@@ -201,7 +215,8 @@ public class JavaStarlarkCommon
       boolean enableJSpecify,
       boolean enableDirectClasspath,
       Sequence<?> additionalInputs,
-      Sequence<?> additionalOutputs)
+      Sequence<?> additionalOutputs,
+      String unusedDepsMode)
       throws EvalException,
           TypeException,
           RuleErrorException,
@@ -227,6 +242,7 @@ public class JavaStarlarkCommon
             .addClassPathResources(
                 Sequence.cast(classpathResources, Artifact.class, "classpath_resources"))
             .setStrictJavaDeps(getStrictDepsMode(Ascii.toUpperCase(strictDepsMode)))
+            .setUnusedDepsMode(getUnusedDepsMode(Ascii.toUpperCase(unusedDepsMode)))
             .setTargetLabel(targetLabel)
             .setInjectingRuleKind(
                 injectingRuleKind == Starlark.NONE ? null : (String) injectingRuleKind)

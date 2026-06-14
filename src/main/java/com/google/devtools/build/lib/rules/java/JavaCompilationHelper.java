@@ -605,6 +605,9 @@ public final class JavaCompilationHelper {
     if (!ruleContext.getLabel().getRepository().isMain()) {
       return DepsCheckingMode.OFF;
     }
+    if (getAttributes().getUnusedDepsMode() != DepsCheckingMode.DEFAULT) {
+      return getAttributes().getUnusedDepsMode();
+    }
     DepsCheckingMode mode = getJavaConfiguration().getUnusedDeps();
     if (ruleContext.getRule() != null) {
       java.util.Set<String> tags = ruleContext.getRule().getRuleTags();

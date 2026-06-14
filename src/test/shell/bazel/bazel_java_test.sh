@@ -2788,4 +2788,150 @@ EOF
   expect_log "buildozer 'remove deps @+local_repository+other_unused_repo//pkg:lib' //java/unused_ext"
 }
 
+function add_rules_java_override() {
+  local module_file="$1"
+  local rules_java_dir=""
+  for candidate in "rules_java" "rules_java+" "rules_java~override" "_main/rules_java_tmp"; do
+    local path
+    path="$(rlocation "${candidate}/MODULE.bazel")"
+    if [[ -n "${path}" && -f "${path}" ]]; then
+      rules_java_dir="$(dirname "${path}")"
+      break
+    fi
+  done
+  
+  if [[ -z "${rules_java_dir}" ]]; then
+    rules_java_dir="$(find "${RUNFILES_DIR}" -name "MODULE.bazel" | while read -r f; do
+      if grep -q 'name = "rules_java"' "${f}"; then
+        dirname "${f}"
+        break
+      fi
+    done)"
+  fi
+
+  if [[ -n "${rules_java_dir}" ]]; then
+    cat >> "${module_file}" <<EOF
+local_path_override(
+    module_name = "rules_java",
+    path = "${rules_java_dir}",
+)
+EOF
+  else
+    fail "Could not find rules_java in runfiles"
+  fi
+}
+
+function setup_unused_deps_attr_test_files() {
+  local unused_deps_mode="$1"
+  mkdir -p java/unused_a java/unused_b
+  cat << 'EOF' > java/unused_a/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+package(default_visibility=['//visibility:public'])
+java_library(name = "unused_a", srcs = ["A.java"])
+EOF
+  cat << 'EOF' > java/unused_a/A.java
+package unused_a;
+public class A {}
+EOF
+
+  local attr=""
+  if [[ -n "$unused_deps_mode" ]]; then
+    attr="unused_deps_mode = \"$unused_deps_mode\","
+  fi
+
+  cat << EOF > java/unused_b/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(
+    name = "unused_b",
+    srcs = ["B.java"],
+    deps = ["//java/unused_a"],
+    $attr
+)
+EOF
+  cat << 'EOF' > java/unused_b/B.java
+package unused_b;
+public class B {}
+EOF
+}
+
+function setup_unused_deps_attr_test_files_for_test() {
+  local unused_deps_mode="$1"
+  mkdir -p java/unused_a java/unused_b
+  cat << 'EOF' > java/unused_a/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+package(default_visibility=['//visibility:public'])
+java_library(name = "unused_a", srcs = ["A.java"])
+EOF
+  cat << 'EOF' > java/unused_a/A.java
+package unused_a;
+public class A {}
+EOF
+
+  local attr=""
+  if [[ -n "$unused_deps_mode" ]]; then
+    attr="unused_deps_mode = \"$unused_deps_mode\","
+  fi
+
+  cat << EOF > java/unused_b/BUILD
+load("@rules_java//java:java_test.bzl", "java_test")
+java_test(
+    name = "unused_b",
+    srcs = ["B.java"],
+    deps = ["//java/unused_a"],
+    use_testrunner = False,
+    main_class = "unused_b.B",
+    $attr
+)
+EOF
+  cat << 'EOF' > java/unused_b/B.java
+package unused_b;
+public class B {
+  public static void main(String[] args) {}
+}
+EOF
+}
+
+function test_unused_deps_attribute_error() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_attr_test_files "error"
+  add_rules_java_override MODULE.bazel
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=off >& $TEST_log && fail "build should fail with unused_deps_mode=error attribute"
+  expect_log "buildozer 'remove deps //java/unused_a' //java/unused_b"
+}
+
+function test_unused_deps_attribute_warn() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_attr_test_files "warn"
+  add_rules_java_override MODULE.bazel
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=off >& $TEST_log || fail "build should succeed with unused_deps_mode=warn attribute"
+  expect_log "warning: \[unused-deps\] Dependency"
+}
+
+function test_unused_deps_attribute_off() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_attr_test_files "off"
+  add_rules_java_override MODULE.bazel
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=error >& $TEST_log || fail "build should succeed with unused_deps_mode=off attribute"
+}
+
+function test_unused_deps_java_test_attribute_error() {
+  if [[ "${JAVA_TOOLS_ZIP}" == "released" ]]; then
+    echo "Skipping test: released java_tools does not support --experimental_unused_deps"
+    return 0
+  fi
+  setup_unused_deps_attr_test_files_for_test "error"
+  add_rules_java_override MODULE.bazel
+  bazel build //java/unused_b:unused_b --experimental_unused_deps=off >& $TEST_log && fail "build should fail with unused_deps_mode=error on java_test"
+  expect_log "buildozer 'remove deps //java/unused_a' //java/unused_b"
+}
+
 run_suite "Java integration tests"
