@@ -376,12 +376,14 @@ public final class JavaCompileActionBuilder {
     return this;
   }
 
+  /** Adds a single target label of a declared direct dependency. */
   @CanIgnoreReturnValue
   public JavaCompileActionBuilder addTargetDeclaredDep(String label) {
     this.targetDeclaredDeps.add(label);
     return this;
   }
 
+  /** Adds target labels of declared direct dependencies. */
   @CanIgnoreReturnValue
   public JavaCompileActionBuilder addTargetDeclaredDeps(Collection<String> labels) {
     this.targetDeclaredDeps.addAll(labels);

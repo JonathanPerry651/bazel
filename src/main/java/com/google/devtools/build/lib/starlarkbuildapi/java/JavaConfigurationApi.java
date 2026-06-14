@@ -53,6 +53,7 @@ public interface JavaConfigurationApi extends StarlarkValue {
       doc = "The value of the strict_java_deps flag.")
   String getStrictJavaDepsName();
 
+  /** Returns the value of the unused_deps flag. */
   @StarlarkMethod(
       name = "unused_deps",
       structField = true,

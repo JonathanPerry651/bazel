@@ -361,6 +361,7 @@ public final class OptionsParser {
     return strictJavaDeps;
   }
 
+  /** Returns the unused dependency checking mode. */
   public String getUnusedDeps() {
     return unusedDeps;
   }
@@ -377,6 +378,7 @@ public final class OptionsParser {
     return depsArtifacts;
   }
 
+  /** Returns the target labels of declared direct dependencies. */
   public Set<String> getTargetDeclaredDeps() {
     return targetDeclaredDeps;
   }

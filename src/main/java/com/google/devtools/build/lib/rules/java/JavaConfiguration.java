@@ -180,11 +180,13 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
     return Ascii.toLowerCase(strictJavaDeps.name());
   }
 
+  /** Returns the name of the unused_deps mode, suitable for Starlark. */
   @Override
   public String getUnusedDepsName() {
     return Ascii.toLowerCase(unusedDeps.name());
   }
 
+  /** Returns the strictness level for unused dependency checking. */
   public DepsCheckingMode getUnusedDeps() {
     return unusedDeps;
   }

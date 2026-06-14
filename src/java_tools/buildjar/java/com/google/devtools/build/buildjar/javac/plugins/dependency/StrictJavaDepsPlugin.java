@@ -294,6 +294,13 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
     }
   }
 
+  /**
+   * Reads the target label representing the owner of the given classpath jar file from its manifest.
+   *
+   * @param jar the classpath jar file to read the manifest from
+   * @return the resolved {@link JarOwner} representing the target that built the jar, or a
+   *         fallback representing the jar file path if target metadata is absent or unreadable
+   */
   private static JarOwner readJarOwnerFromManifest(NonPlatformJar jar) {
     if (jar.getKind() == FOR_JSPECIFY_FROM_PLATFORM) {
       return JSPECIFY_JAR_OWNER;

@@ -591,6 +591,14 @@ public final class JavaCompilationHelper {
     return customJavacOpts;
   }
 
+  /**
+   * Resolves the unused dependency checking mode for the current compilation target.
+   *
+   * <p>This checking is restricted to targets in the main repository. If the target is in the
+   * main repository, it resolves the mode by looking at the {@code unused-deps:*} tags on the rule,
+   * falling back to the global configuration from the {@link JavaConfiguration} if no tags are
+   * present.
+   */
   private DepsCheckingMode getUnusedDepsMode() {
     // Restrict unused dependency checking to targets in the main repository to avoid
     // generating warnings or errors for external repositories (e.g. third-party dependencies).
