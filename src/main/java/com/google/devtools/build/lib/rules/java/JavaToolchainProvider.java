@@ -203,6 +203,17 @@ public final class JavaToolchainProvider extends StarlarkInfoWrapper {
     return getUnderlyingValue("single_jar", FilesToRunProvider.class);
   }
 
+  @Nullable
+  public JavaPluginData getExtraErrorPronePlugins() throws RuleErrorException {
+    try {
+      Object value = getUnderlyingValue("_extra_errorprone_plugins", StructImpl.class);
+      return value == null ? null : JavaPluginData.wrap(value);
+    } catch (EvalException | RuleErrorException e) {
+      return null;
+    }
+  }
+
+
   /** Returns the {@link Artifact} of the GenClass deploy jar */
   public Artifact getGenClass() throws RuleErrorException {
     return getUnderlyingValue("_gen_class", Artifact.class);

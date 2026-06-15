@@ -160,6 +160,17 @@ public final class JavaCompilationHelper {
 
     ImmutableList<Artifact> sourceJars = attributes.getSourceJars();
     JavaPluginData plugins = attributes.plugins().plugins();
+    JavaPluginData extraEpPlugins = javaToolchain.getExtraErrorPronePlugins();
+    if (extraEpPlugins != null) {
+      plugins =
+          JavaPluginData.merge(
+              ImmutableList.of(
+                  plugins,
+                  JavaPluginData.create(
+                      NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER),
+                      extraEpPlugins.processorClasspath(),
+                      extraEpPlugins.data())));
+    }
     List<Artifact> resourceJars = new ArrayList<>();
 
     boolean turbineAnnotationProcessing =

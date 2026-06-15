@@ -1,0 +1,62 @@
+diff --git a/java/common/rules/java_toolchain.bzl b/java/common/rules/java_toolchain.bzl
+index a24ae4f..b0d8b34 100644
+--- a/java/common/rules/java_toolchain.bzl
++++ b/java/common/rules/java_toolchain.bzl
+@@ -19,7 +19,7 @@ Definition of java_toolchain rule and JavaToolchainInfo provider.
+ load("//java/common:java_semantics.bzl", "semantics")
+ load("//java/common/rules:java_helper.bzl", "helper")
+ load("//java/private:boot_class_path_info.bzl", "BootClassPathInfo")
+-load("//java/private:java_info.bzl", "JavaPluginDataInfo")
++load("//java/private:java_info.bzl", "JavaPluginDataInfo", "JavaPluginInfo")
+ load("//java/private:native.bzl", "get_internal_java_common")
+ load(":java_package_configuration.bzl", "JavaPackageConfigurationInfo")
+ load(":java_runtime.bzl", "JavaRuntimeInfo")
+@@ -73,6 +73,7 @@ JavaToolchainInfo, _new_javatoolchaininfo = provider(
+         "_package_configuration": _PRIVATE_API_DOC_STRING,
+         "_reduced_classpath_incompatible_processors": _PRIVATE_API_DOC_STRING,
+         "_timezone_data": _PRIVATE_API_DOC_STRING,
++        "_extra_errorprone_plugins": _PRIVATE_API_DOC_STRING,
+     },
+     init = _java_toolchain_info_init,
+ )
+@@ -137,10 +138,25 @@ def _java_toolchain_impl(ctx):
+         _package_configuration = [dep[JavaPackageConfigurationInfo] for dep in ctx.attr.package_configuration],
+         _reduced_classpath_incompatible_processors = depset(ctx.attr.reduced_classpath_incompatible_processors, order = "preorder"),
+         _timezone_data = ctx.file.timezone_data,
++        _extra_errorprone_plugins = _collect_extra_errorprone_plugins(ctx.attr.extra_errorprone_plugins),
+     )
+     toolchain_info = ToolchainInfo(java = java_toolchain_info)
+     return [java_toolchain_info, toolchain_info, DefaultInfo()]
+ 
++def _collect_extra_errorprone_plugins(plugins):
++    transitive_processor_classes = []
++    transitive_processor_jars = []
++    transitive_processor_data = []
++    for plugin in plugins:
++        transitive_processor_classes.append(plugin[JavaPluginInfo].plugins.processor_classes)
++        transitive_processor_jars.append(plugin[JavaPluginInfo].plugins.processor_jars)
++        transitive_processor_data.append(plugin[JavaPluginInfo].plugins.processor_data)
++    return JavaPluginDataInfo(
++        processor_classes = depset(transitive = transitive_processor_classes),
++        processor_jars = depset(transitive = transitive_processor_jars),
++        processor_data = depset(transitive = transitive_processor_data),
++    )
++
+ def _get_bootclasspath_info(ctx):
+     bootclasspath_infos = [dep[BootClassPathInfo] for dep in ctx.attr.bootclasspath if BootClassPathInfo in dep]
+     if bootclasspath_infos:
+@@ -293,6 +309,14 @@ java_toolchain(
+     """,
+     # buildifier: disable=attr-licenses
+     attrs = {
++        "extra_errorprone_plugins": attr.label_list(
++            cfg = "exec",
++            providers = [JavaPluginInfo],
++            allow_files = True,
++            doc = """
++Extra Error Prone plugins to apply to all javac invocations.
++            """,
++        ),
+         "android_lint_data": attr.label_list(
+             cfg = "exec",
+             allow_files = True,

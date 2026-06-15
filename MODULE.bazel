@@ -69,6 +69,14 @@ single_version_override(
     version = "6.6",
 )
 
+single_version_override(
+    module_name = "rules_java",
+    patch_strip = 1,
+    patches = ["//third_party:rules_java.patch"],
+    version = "9.5.0",
+)
+
+
 # TODO(pcloudy): Remove once the next version of rules_graalvm is available.
 single_version_override(
     module_name = "rules_graalvm",

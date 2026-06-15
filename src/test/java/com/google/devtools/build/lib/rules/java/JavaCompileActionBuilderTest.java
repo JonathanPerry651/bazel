@@ -271,6 +271,109 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
         .isEmpty();
   }
 
+  @Test
+  public void testExtraErrorPronePlugins() throws Exception {
+    scratch.file("java/com/google/test/a.java", "package com.google.test; class A {}");
+    scratch.file("java/com/google/test/plugin.jar", "");
+    scratch.file("java/com/google/test/ep_data.txt", "some data");
+    scratch.file(
+        "java/com/google/test/rules.bzl",
+        """
+        load("@rules_java//java/private:java_info.bzl", "JavaInfo", "JavaPluginInfo")
+
+        def _dummy_plugin_impl(ctx):
+            jar_java_info = JavaInfo(
+                output_jar = ctx.file.jar,
+                compile_jar = ctx.file.jar,
+            )
+            plugin_info = JavaPluginInfo(
+                runtime_deps = [jar_java_info],
+                processor_class = ctx.attr.processor_class,
+                data = ctx.files.data,
+            )
+            return [plugin_info]
+
+        dummy_plugin = rule(
+            implementation = _dummy_plugin_impl,
+            attrs = {
+                "jar": attr.label(allow_single_file = True, mandatory = True),
+                "data": attr.label_list(allow_files = True),
+                "processor_class": attr.string(mandatory = True),
+            },
+        )
+        """);
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("//java/com/google/test:rules.bzl", "dummy_plugin")
+        load("@rules_java//java:defs.bzl", "java_library")
+        load("@rules_java//java/toolchains:java_toolchain.bzl", "java_toolchain")
+
+        dummy_plugin(
+            name = "ep_plugin",
+            jar = "plugin.jar",
+            processor_class = "com.google.errorprone.EpPlugin",
+            data = ["ep_data.txt"],
+        )
+
+        java_toolchain(
+            name = "custom_toolchain",
+            bootclasspath = ["@bazel_tools//tools/jdk:bootclasspath"],
+            genclass = "@bazel_tools//tools/jdk:GenClass_deploy.jar",
+            header_compiler = "@bazel_tools//tools/jdk:turbine_deploy.jar",
+            header_compiler_direct = "@bazel_tools//tools/jdk:TurbineDirect_deploy.jar",
+            ijar = "@bazel_tools//tools/jdk:ijar",
+            jacocorunner = "@bazel_tools//tools/jdk:JacocoCoverage",
+            java_runtime = "@bazel_tools//tools/jdk:host_jdk",
+            javabuilder = "@bazel_tools//tools/jdk:JavaBuilder_deploy.jar",
+            singlejar = "@bazel_tools//tools/jdk:singlejar",
+            source_version = "8",
+            target_version = "8",
+            extra_errorprone_plugins = [":ep_plugin"],
+        )
+
+        toolchain(
+            name = "custom_toolchain_reg",
+            toolchain = ":custom_toolchain",
+            toolchain_type = "@bazel_tools//tools/jdk:toolchain_type",
+        )
+
+        java_library(
+            name = "a",
+            srcs = ["a.java"],
+        )
+        """);
+
+    useConfiguration("--extra_toolchains=//java/com/google/test:custom_toolchain_reg");
+
+    JavaCompileAction action =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+
+    // Check processor names
+    assertThat(JavaCompileActionTestHelper.getProcessorNames(action))
+        .doesNotContain("com.google.errorprone.EpPlugin");
+
+    // Check processor path contains our plugin jar
+    boolean foundPluginJar = false;
+    for (String path : JavaCompileActionTestHelper.getProcessorpath(action)) {
+      if (path.contains("plugin.jar")) {
+        foundPluginJar = true;
+        break;
+      }
+    }
+    assertThat(foundPluginJar).isTrue();
+
+    // Check inputs contain the extra errorprone plugin's data file
+    boolean foundDataFile = false;
+    for (Artifact input : action.getInputs().toList()) {
+      if (input.getFilename().equals("ep_data.txt")) {
+        foundDataFile = true;
+        break;
+      }
+    }
+    assertThat(foundDataFile).isTrue();
+  }
+
   private CommandAction getTurbineAction(JavaCompileAction compileAction) throws Exception {
     return (CommandAction)
         getGeneratingAction(getBinArtifacts(compileAction).collect(onlyElement()));
