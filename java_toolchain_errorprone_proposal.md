@@ -109,7 +109,7 @@ java_package_configuration = rule(
 )
 ```
 
-### 3.2. Merging Plugin Data in Starlark
+### 3.2. Collecting Plugin Data in Starlark
 Error Prone plugins are dynamically resolved inside `JavaBuilder` via service discovery. They should not be passed to the compiler's `-processor` flag as standard annotation processors. 
 
 Therefore, the Starlark implementation constructs the `JavaPluginDataInfo` with an empty `processor_classes` depset, while collecting all required classpath jars and data files:
