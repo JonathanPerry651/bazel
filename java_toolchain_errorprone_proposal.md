@@ -8,7 +8,10 @@ This document proposes extending the `java_package_configuration` API to allow u
 
 Error Prone is a static analysis tool for Java integrated directly into Bazel's Java compiler wrapper (`JavaBuilder`). While Error Prone comes with a set of built-in bug checkers, developers often need to enforce custom static analysis rules (e.g., custom checks written within a company's internal repository, or open-source check suites like NullAway or EPRecommenders).
 
-Currently, there is no direct mechanism to plug in extra Error Prone plugins per target or package group using the toolchain. To run custom checks, teams either have to:
+> [!NOTE]
+> There is currently no public-facing API that can wire in these extra Error Prone plugins. Internally, Bazel's `ClassloaderMaskingFileManager` masks compiler classpaths, preventing standard classpath classloading. This forces any client wishing to use custom checkers/plugins to wrap the `JavaBuilder` invocation in a custom shell script and manually inject `--processorpath` arguments themselves.
+
+Without a clean integration, teams are forced to either:
 - Package the plugins globally in their default compiler classpath, making it difficult to control which packages run them.
 - Manually configure compilation plugin dependencies on every single target, leading to configuration bloat and maintenance overhead.
 
@@ -106,50 +109,50 @@ java_package_configuration = rule(
 )
 ```
 
-### 3.2. Merging & Propagating Plugin Data
-Within the rule implementation, extract `JavaPluginInfo` from the plugin targets and merge them into a single `JavaPluginData` structure. The merged structure is then passed inside `JavaPackageConfigurationInfo`:
+### 3.2. Stripping and Merging Plugin Data in Starlark
+Error Prone plugins are dynamically resolved inside `JavaBuilder` via service discovery. They should not be passed to the compiler's `-processor` flag as standard annotation processors. 
+
+To achieve this, the Starlark implementation strips any `processor_classes` during collection, outputting an empty classes depset while keeping the classpath jars and data files:
 
 ```starlark
-def _java_package_configuration_impl(ctx):
-    # Extract JavaPluginInfo plugins
-    plugin_data_list = []
-    for target in ctx.attr.errorprone_plugins:
-        if JavaPluginInfo in target:
-            plugin_data_list.append(target[JavaPluginInfo].plugins)
-
-    # Merge individual plugin datasets into a single struct
-    merged_plugins = _merge_plugin_data(plugin_data_list)
-
-    return [
-        JavaPackageConfigurationInfo(
-            package_specs = ctx.attr.packages,
-            javac_opts = depset(ctx.attr.javacopts),
-            data = depset(ctx.files.data),
-            errorprone_plugins = merged_plugins,
-        )
-    ]
-
-def _merge_plugin_data(plugin_data_list):
-    processor_classes = []
-    processor_jars = []
-    processor_data = []
-    for p in plugin_data_list:
-        processor_classes.append(p.processor_classes)
-        processor_jars.append(p.processor_jars)
-        processor_data.append(p.processor_data)
-
-    return struct(
-        processor_classes = depset(transitive = processor_classes),
-        processor_jars = depset(transitive = processor_jars),
-        processor_data = depset(transitive = processor_data),
+def _collect_errorprone_plugins(plugins):
+    transitive_processor_jars = []
+    transitive_processor_data = []
+    for plugin in plugins:
+        if JavaPluginInfo in plugin:
+            p = plugin[JavaPluginInfo].plugins
+            transitive_processor_jars.append(p.processor_jars)
+            transitive_processor_data.append(p.processor_data)
+    return JavaPluginDataInfo(
+        processor_classes = depset(), # Stripped / Empty
+        processor_jars = depset(transitive = transitive_processor_jars),
+        processor_data = depset(transitive = transitive_processor_data),
     )
+
+def _rule_impl(ctx):
+    javacopts = get_internal_java_common().expand_java_opts(ctx, "javacopts", tokenize = True)
+    javacopts_depset = helper.detokenize_javacopts(javacopts)
+    package_specs = [package[PackageSpecificationInfo] for package in ctx.attr.packages]
+    system = ctx.attr.system[BootClassPathInfo] if ctx.attr.system else None
+    errorprone_plugins = _collect_errorprone_plugins(ctx.attr.errorprone_plugins)
+    return [
+        DefaultInfo(),
+        JavaPackageConfigurationInfo(
+            data = depset(ctx.files.data),
+            javac_opts = javacopts_depset,
+            matches = _matches,
+            package_specs = package_specs,
+            system = system,
+            errorprone_plugins = errorprone_plugins,
+        ),
+    ]
 ```
 
 ---
 
 ## 4. Changes in Core Bazel
 
-Core Bazel must consume the `errorprone_plugins` data from the package configurations and merge it during the compilation action construction.
+Core Bazel must consume the `errorprone_plugins` data from the package configurations and merge it during compile action construction.
 
 ### 4.1. Expose `errorprone_plugins` in Java Provider wrapper
 Update [JavaPackageConfigurationProvider.java](file:///home/jonathanp/github/bazel/src/main/java/com/google/devtools/build/lib/rules/java/JavaPackageConfigurationProvider.java) to parse the `errorprone_plugins` struct from the underlying Starlark info:
@@ -166,7 +169,7 @@ diff --git a/src/main/java/com/google/devtools/build/lib/rules/java/JavaPackageC
  import com.google.devtools.build.lib.cmdline.Label;
  import com.google.devtools.build.lib.collect.nestedset.Depset;
  import com.google.devtools.build.lib.collect.nestedset.NestedSet;
-@@ -87,6 +88,16 @@
+@@ -87,6 +88,18 @@
      }
    }
  
@@ -174,7 +177,9 @@ diff --git a/src/main/java/com/google/devtools/build/lib/rules/java/JavaPackageC
 +  JavaPluginData errorpronePlugins() throws RuleErrorException {
 +    try {
 +      Object value = underlying.getValue("errorprone_plugins");
-+      return value == null ? JavaPluginData.empty() : JavaPluginData.wrap(value);
++      return value == null || value == Starlark.NONE
++          ? JavaPluginData.empty()
++          : JavaPluginData.wrap(value);
 +    } catch (EvalException e) {
 +      throw new RuleErrorException(e);
 +    }
@@ -185,13 +190,13 @@ diff --git a/src/main/java/com/google/devtools/build/lib/rules/java/JavaPackageC
 ```
 
 ### 4.2. Inject Plugins during compilation
-Modify [JavaCompilationHelper.java](file:///home/jonathanp/github/bazel/src/main/java/com/google/devtools/build/lib/rules/java/JavaCompilationHelper.java) inside compilation action creation to extract the matching package configuration's plugin data, merging it with the compiled target's existing plugins:
+Modify [JavaCompilationHelper.java](file:///home/jonathanp/github/bazel/src/main/java/com/google/devtools/build/lib/rules/java/JavaCompilationHelper.java) inside compilation action creation to extract the matching package configurations' plugin data, merging it with the compiled target's existing plugins. Since `processor_classes` are already emptied by Starlark, a simple merge is sufficient:
 
 ```diff
 diff --git a/src/main/java/com/google/devtools/build/lib/rules/java/JavaCompilationHelper.java b/src/main/java/com/google/devtools/build/lib/rules/java/JavaCompilationHelper.java
 --- a/src/main/java/com/google/devtools/build/lib/rules/java/JavaCompilationHelper.java
 +++ b/src/main/java/com/google/devtools/build/lib/rules/java/JavaCompilationHelper.java
-@@ -165,6 +165,19 @@
+@@ -163,6 +163,17 @@
      ImmutableList<Artifact> sourceJars = attributes.getSourceJars();
      JavaPluginData plugins = attributes.plugins().plugins();
 +
