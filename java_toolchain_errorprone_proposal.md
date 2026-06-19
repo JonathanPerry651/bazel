@@ -109,10 +109,10 @@ java_package_configuration = rule(
 )
 ```
 
-### 3.2. Stripping and Merging Plugin Data in Starlark
+### 3.2. Merging Plugin Data in Starlark
 Error Prone plugins are dynamically resolved inside `JavaBuilder` via service discovery. They should not be passed to the compiler's `-processor` flag as standard annotation processors. 
 
-To achieve this, the Starlark implementation strips any `processor_classes` during collection, outputting an empty classes depset while keeping the classpath jars and data files:
+Therefore, the Starlark implementation constructs the `JavaPluginDataInfo` with an empty `processor_classes` depset, while collecting all required classpath jars and data files:
 
 ```starlark
 def _collect_errorprone_plugins(plugins):
@@ -124,7 +124,7 @@ def _collect_errorprone_plugins(plugins):
             transitive_processor_jars.append(p.processor_jars)
             transitive_processor_data.append(p.processor_data)
     return JavaPluginDataInfo(
-        processor_classes = depset(), # Stripped / Empty
+        processor_classes = depset(), # Empty by default (loaded via service discovery)
         processor_jars = depset(transitive = transitive_processor_jars),
         processor_data = depset(transitive = transitive_processor_data),
     )
