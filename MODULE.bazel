@@ -141,6 +141,11 @@ local_path_override(
     path = "./third_party/remoteapis",
 )
 
+local_path_override(
+    module_name = "rules_java",
+    path = "/home/jonathanp/github/rules_java",
+)
+
 # =========================================
 # Java dependencies
 # =========================================

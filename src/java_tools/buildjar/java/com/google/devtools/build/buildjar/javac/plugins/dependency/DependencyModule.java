@@ -88,6 +88,8 @@ public final class DependencyModule {
   private final FixMessage fixMessage;
   private final Set<String> exemptGenerators;
   private final Set<PackageSymbol> packages;
+  private final Map<Path, String> directDepJarsToVerify;
+  private final Set<String> allDeclaredLabels;
 
   DependencyModule(
       StrictJavaDeps strictJavaDeps,
@@ -99,7 +101,9 @@ public final class DependencyModule {
       String targetLabel,
       Path outputDepsProtoFile,
       FixMessage fixMessage,
-      Set<String> exemptGenerators) {
+      Set<String> exemptGenerators,
+      Map<Path, String> directDepJarsToVerify,
+      Set<String> allDeclaredLabels) {
     this.strictJavaDeps = strictJavaDeps;
     this.fixDepsTool = fixDepsTool;
     this.directJars = directJars;
@@ -113,6 +117,16 @@ public final class DependencyModule {
     this.fixMessage = fixMessage;
     this.exemptGenerators = exemptGenerators;
     this.packages = new HashSet<>();
+    this.directDepJarsToVerify = directDepJarsToVerify;
+    this.allDeclaredLabels = allDeclaredLabels;
+  }
+
+  public Map<Path, String> getDirectDepJarsToVerify() {
+    return directDepJarsToVerify;
+  }
+
+  public Set<String> getAllDeclaredLabels() {
+    return allDeclaredLabels;
   }
 
   /** Returns a plugin to be enabled in the compiler. */
@@ -359,6 +373,9 @@ public final class DependencyModule {
       }
     }
 
+    private final Map<Path, String> directDepJarsToVerify = new HashMap<>();
+    private final Set<String> allDeclaredLabels = new HashSet<>();
+
     /**
      * Constructs the DependencyModule, guaranteeing that the maps are never null (they may be
      * empty), and the default strictJavaDeps setting is OFF.
@@ -376,7 +393,20 @@ public final class DependencyModule {
           targetLabel,
           outputDepsProtoFile,
           fixMessage,
-          exemptGenerators);
+          exemptGenerators,
+          directDepJarsToVerify,
+          allDeclaredLabels);
+    }
+
+    @CanIgnoreReturnValue
+    public Builder addDirectDepJarsToVerify(List<Path> jars, List<String> labels) {
+      for (int i = 0; i < jars.size(); i++) {
+        Path jar = jars.get(i);
+        String label = labels.get(i);
+        this.directDepJarsToVerify.put(jar, label);
+        this.allDeclaredLabels.add(label);
+      }
+      return this;
     }
 
     /**

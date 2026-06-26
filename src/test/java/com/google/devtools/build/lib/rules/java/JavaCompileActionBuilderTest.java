@@ -22,6 +22,7 @@ import static com.google.devtools.build.lib.rules.java.JavaCompileActionTestHelp
 import com.google.devtools.build.lib.actions.Action;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.CommandAction;
+import com.google.devtools.build.lib.analysis.ConfiguredTarget;
 import com.google.devtools.build.lib.analysis.util.BuildViewTestCase;
 import com.google.devtools.build.lib.cmdline.RepositoryName;
 import com.google.devtools.build.lib.testutil.MoreAsserts;
@@ -280,5 +281,69 @@ public final class JavaCompileActionBuilderTest extends BuildViewTestCase {
       throws Exception {
     return getInputs(compileAction, getDirectJars(compileAction)).stream()
         .filter(a -> a.getFilename().endsWith("-hjar.jar"));
+  }
+
+  @Test
+  public void testUnusedDepsVerifyFlags() throws Exception {
+    scratch.file(
+        "java/com/google/test/BUILD",
+        """
+        load("@rules_java//java:defs.bzl", "java_library", "java_package_configuration", "java_toolchain")
+
+        java_package_configuration(
+            name = "unused_deps_config",
+            unused_deps = "error",
+            packages = [":unused_deps_packages"],
+        )
+
+        package_group(
+            name = "unused_deps_packages",
+            packages = ["//java/com/google/test/..."],
+        )
+
+        java_toolchain(
+            name = "toolchain",
+            bootclasspath = ["@bazel_tools//tools/jdk:bootclasspath"],
+            genclass = "@bazel_tools//tools/jdk:GenClass_deploy.jar",
+            header_compiler = "@bazel_tools//tools/jdk:turbine_deploy.jar",
+            header_compiler_direct = "@bazel_tools//tools/jdk:TurbineDirect_deploy.jar",
+            ijar = "@bazel_tools//tools/jdk:ijar",
+            jacocorunner = "@bazel_tools//tools/jdk:JacocoCoverage",
+            java_runtime = "@bazel_tools//tools/jdk:host_jdk",
+            javabuilder = "@bazel_tools//tools/jdk:JavaBuilder_deploy.jar",
+            singlejar = "@bazel_tools//tools/jdk:singlejar",
+            source_version = "8",
+            target_version = "8",
+            package_configuration = [":unused_deps_config"],
+        )
+
+        toolchain(
+            name = "my_java_toolchain",
+            toolchain = ":toolchain",
+            toolchain_type = "@bazel_tools//tools/jdk:toolchain_type",
+        )
+
+        java_library(
+            name = "dep",
+            srcs = ["Dep.java"],
+        )
+
+        java_library(
+            name = "a",
+            srcs = ["A.java"],
+            deps = [":dep"],
+        )
+        """);
+
+    useConfiguration("--extra_toolchains=//java/com/google/test:my_java_toolchain");
+
+    JavaCompileAction compileAction =
+        (JavaCompileAction) getGeneratingActionForLabel("//java/com/google/test:liba.jar");
+    List<String> command = getJavacArguments(compileAction);
+    assertThat(command).containsAtLeast("--direct_dep_jar", "--direct_dep_label");
+    int jarIdx = command.indexOf("--direct_dep_jar");
+    int labelIdx = command.indexOf("--direct_dep_label");
+    assertThat(command.get(jarIdx + 1)).contains("libdep");
+    assertThat(command.get(labelIdx + 1)).endsWith("//java/com/google/test:dep");
   }
 }
