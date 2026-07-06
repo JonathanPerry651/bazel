@@ -38,6 +38,7 @@ import java.util.jar.Manifest;
  */
 public class JarCreator extends JarHelper {
 
+
   // Map from Jar entry names to files. Use TreeMap so we can establish a canonical order for the
   // entries regardless in what order they get added.
   private final TreeMap<String, Path> jarEntries = new TreeMap<>();

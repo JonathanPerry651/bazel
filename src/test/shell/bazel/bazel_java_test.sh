@@ -2532,8 +2532,6 @@ EOF
 }
 
 function test_custom_javabuilder_inject_plugin() {
-  add_platforms "MODULE.bazel"
-
   mkdir -p custom_plugin
   cat > custom_plugin/MyChecker.java << 'EOF'
 package custom_plugin;
@@ -2564,25 +2562,18 @@ EOF
 custom_plugin.MyChecker
 EOF
 
+  local jb_deploy_jar=$(rlocation io_bazel/src/java_tools/buildjar/JavaBuilder_deploy.jar)
+  cp "${jb_deploy_jar}" custom_plugin/JavaBuilder_deploy.jar
+
   cat > custom_plugin/BUILD << 'EOF'
-load("@rules_java//java:defs.bzl", "java_library")
-load("@bazel_tools//tools/jdk:default_java_toolchain.bzl", "DEFAULT_TOOLCHAIN_CONFIGURATION", "default_java_toolchain")
+load("@rules_java//java:java_import.bzl", "java_import")
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//toolchains:default_java_toolchain.bzl", "default_java_toolchain")
 load("@bazel_tools//tools/jdk:javabuilder.bzl", "default_javabuilder", "errorprone_with_custom_plugins")
 
-# Define target platform constraints to break the toolchain resolution loop.
-# This prevents our custom JavaBuilder from being compiled using the custom toolchain itself.
-constraint_setting(name = "toolchain_type_setting")
-constraint_value(
-    name = "custom_plugin_enabled",
-    constraint_setting = ":toolchain_type_setting",
-)
-
-platform(
-    name = "custom_platform",
-    constraint_values = [
-        ":custom_plugin_enabled",
-    ],
-    parents = ["@platforms//host"],
+java_import(
+    name = "javabuilder_core_import",
+    jars = ["JavaBuilder_deploy.jar"],
 )
 
 java_library(
@@ -2598,44 +2589,29 @@ java_library(
         "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
     ],
     deps = [
-        "@rules_java//third_party:error_prone",
+        ":javabuilder_core_import",
     ],
 )
 
 errorprone_with_custom_plugins(
     name = "my_errorprone",
-    errorprone = "@rules_java//third_party:error_prone",
+    errorprone = ":javabuilder_core_import",
     plugins = [":my_plugin"],
 )
 
 default_javabuilder(
     name = "custom_javabuilder",
+    javabuilder_core = ":javabuilder_core_import",
     errorprone = [":my_errorprone"],
 )
 
 default_java_toolchain(
     name = "custom_toolchain",
-    configuration = DEFAULT_TOOLCHAIN_CONFIGURATION,
+    source_version = "17",
+    target_version = "17",
     javabuilder = ":custom_javabuilder_deploy.jar",
-    toolchain_definition = False,
-)
-
-toolchain(
-    name = "custom_toolchain_definition",
-    toolchain_type = "@bazel_tools//tools/jdk:toolchain_type",
-    exec_compatible_with = [],
-    target_compatible_with = [":custom_plugin_enabled"],
-    toolchain = ":custom_toolchain",
-    visibility = ["//visibility:public"],
 )
 EOF
-
-  local bzl_file=$(rlocation "${RULES_JAVA_REPO_NAME}/java/defs.bzl")
-  local real_rules_java=$(dirname "$(dirname "$(readlink -f "${bzl_file}")")")
-  local rules_java_path="${TEST_TMPDIR}/rules_java_override"
-  rm -rf "${rules_java_path}"
-  mkdir -p "${rules_java_path}"
-  cp -r "${real_rules_java}/"* "${rules_java_path}/"
 
   mkdir -p hello
   cat > hello/HelloWorld.java << 'EOF'
@@ -2648,24 +2624,212 @@ public class HelloWorld {
 EOF
 
   cat > hello/BUILD << 'EOF'
-load("@rules_java//java:defs.bzl", "java_binary")
-java_binary(
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(
     name = "hello",
     srcs = ["HelloWorld.java"],
-    main_class = "hello.HelloWorld",
     javacopts = ["-Xep:MyChecker:ERROR"],
 )
 EOF
 
-  bazel clean --lockfile_mode=off --override_repository=rules_java="${rules_java_path}" --override_module=rules_java="${rules_java_path}"
+  bazel clean --lockfile_mode=off
 
-  bazel build --platforms=//custom_plugin:custom_platform --extra_toolchains=//custom_plugin:custom_toolchain_definition --lockfile_mode=off --override_repository=rules_java="${rules_java_path}" --override_module=rules_java="${rules_java_path}" //hello:hello \
+  bazel build --subcommands --strategy=Javac=standalone --java_language_version=17 --extra_toolchains=//custom_plugin:custom_toolchain_definition --lockfile_mode=off //hello:hello \
       >& $TEST_log && fail "Build succeeded but should have failed due to custom Error Prone check" || true
 
   echo "=== TEST LOG CONTENT ===" >&2
   cat "$TEST_log" >&2
 
   expect_log "MyChecker"
+}
+
+function test_unused_deps() {
+  if [[ -n "${RULES_JAVA_OVERRIDE_PATH:-}" ]]; then
+    cat >> MODULE.bazel <<EOF
+local_path_override(
+    module_name = "rules_java",
+    path = "${RULES_JAVA_OVERRIDE_PATH}",
+)
+EOF
+  fi
+
+  # Check if rules_java has the toolchain-driven unused_deps support
+  # We check this by querying the attributes of java_package_configuration
+  # or attempting to build a package configuration target with 'unused_deps'.
+  # If rules_java does not have it, we skip the test.
+
+  mkdir -p pkg
+  cat > pkg/BUILD <<EOF
+load("@rules_java//java:defs.bzl", "java_package_configuration")
+java_package_configuration(
+    name = "test_config_query",
+    package_specs = [":spec_query"],
+    unused_deps = "error",
+)
+package_group(
+    name = "spec_query",
+    packages = ["//pkg/..."],
+)
+EOF
+
+  if ! bazel query //pkg:test_config_query >/dev/null 2>&1; then
+    echo "Skipping test_unused_deps: rules_java does not support unused_deps configuration yet"
+    return 0
+  fi
+
+  # Write the common toolchain definition for main repo targets
+  cat << 'EOF' > pkg/BUILD
+load("@rules_java//toolchains:default_java_toolchain.bzl", "default_java_toolchain")
+load("@rules_java//java:defs.bzl", "java_package_configuration")
+
+package_group(
+    name = "my_package_spec",
+    packages = ["//pkg/..."],
+)
+
+java_package_configuration(
+    name = "unused_deps_error_config",
+    package_specs = [":my_package_spec"],
+    unused_deps = "error",
+)
+
+default_java_toolchain(
+    name = "java_toolchain",
+    package_configuration = [":unused_deps_error_config"],
+)
+EOF
+
+  # -------------------------------------------------------------
+  # Scenario 1: Simple Unused (Error)
+  # -------------------------------------------------------------
+  cat << 'EOF' >> pkg/BUILD
+load("@rules_java//java:java_library.bzl", "java_library")
+java_library(name = "simple_unused", srcs = ["SimpleUnused.java"], deps = [":b"])
+java_library(name = "b", srcs = ["B.java"])
+EOF
+  echo "public class SimpleUnused {}" > pkg/SimpleUnused.java
+  echo "public class B {}" > pkg/B.java
+
+  bazel build //pkg:simple_unused \
+    --extra_toolchains=//pkg:java_toolchain_definition \
+    >& $TEST_log && fail "build succeeded, but expected it to fail due to unused dependency (Simple Unused)"
+
+  expect_log "Target '//pkg:b' is declared as a direct dependency of '//pkg:simple_unused' but is unused"
+
+  # -------------------------------------------------------------
+  # Scenario 2: Simple Used (Success)
+  # -------------------------------------------------------------
+  echo "public class SimpleUnused { B b; }" > pkg/SimpleUnused.java
+  bazel build //pkg:simple_unused \
+    --extra_toolchains=//pkg:java_toolchain_definition \
+    >& $TEST_log || fail "build failed, but expected Simple Used to succeed"
+
+  # -------------------------------------------------------------
+  # Scenario 3: Exported Only (Error)
+  # -------------------------------------------------------------
+  cat << 'EOF' >> pkg/BUILD
+java_library(name = "exported_only", srcs = ["ExportedOnly.java"], deps = [":exports_c"])
+java_library(name = "exports_c", exports = [":c"])
+java_library(name = "c", srcs = ["C.java"])
+EOF
+  echo "public class ExportedOnly { C c; }" > pkg/ExportedOnly.java
+  echo "public class C {}" > pkg/C.java
+
+  bazel build //pkg:exported_only \
+    --extra_toolchains=//pkg:java_toolchain_definition \
+    >& $TEST_log && fail "build succeeded, but expected it to fail due to unused dependency (Exported Only)"
+
+  expect_log "Target '//pkg:exports_c' is declared as a direct dependency of '//pkg:exported_only' but is unused"
+
+  # -------------------------------------------------------------
+  # Scenario 4: Exported & Direct Used (Success)
+  # -------------------------------------------------------------
+  # Define exports_c_with_srcs that exports C but also has its own class
+  cat << 'EOF' >> pkg/BUILD
+java_library(name = "exported_and_direct", srcs = ["ExportedAndDirect.java"], deps = [":exports_c_with_srcs"])
+java_library(name = "exports_c_with_srcs", srcs = ["B2.java"], exports = [":c"])
+EOF
+  echo "public class B2 {}" > pkg/B2.java
+  echo "public class ExportedAndDirect { B2 b; C c; }" > pkg/ExportedAndDirect.java
+
+  bazel build //pkg:exported_and_direct \
+    --extra_toolchains=//pkg:java_toolchain_definition \
+    >& $TEST_log || fail "build failed, but expected Exported & Direct Used to succeed"
+
+  # -------------------------------------------------------------
+  # Scenario 5: Indirect Used (Error - Strict Deps violation)
+  # -------------------------------------------------------------
+  cat << 'EOF' >> pkg/BUILD
+java_library(name = "indirect_used", srcs = ["IndirectUsed.java"], deps = [":dep_no_exports"])
+java_library(name = "dep_no_exports", deps = [":c"])
+EOF
+  echo "public class IndirectUsed { C c; }" > pkg/IndirectUsed.java
+
+  bazel build //pkg:indirect_used \
+    --extra_toolchains=//pkg:java_toolchain_definition \
+    >& $TEST_log && fail "build succeeded, but expected it to fail due to strict deps violation"
+
+  # Check that it's a strict deps error, not an unused deps error
+  expect_log "is not visible from target '//pkg:indirect_used'"
+
+  # -------------------------------------------------------------
+  # Scenario 6: Non-Main Repository Target (Success)
+  # -------------------------------------------------------------
+  mkdir -p ext
+  cat > ext/MODULE.bazel <<EOF
+module(name = "ext")
+bazel_dep(name = "rules_java")
+EOF
+  if [[ -n "${RULES_JAVA_OVERRIDE_PATH:-}" ]]; then
+    cat >> ext/MODULE.bazel <<EOF
+local_path_override(
+    module_name = "rules_java",
+    path = "${RULES_JAVA_OVERRIDE_PATH}",
+)
+EOF
+  fi
+
+  cat > ext/BUILD <<EOF
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_java//toolchains:default_java_toolchain.bzl", "default_java_toolchain")
+load("@rules_java//java:defs.bzl", "java_package_configuration")
+
+package_group(
+    name = "ext_package_spec",
+    packages = ["//..."],
+)
+
+java_package_configuration(
+    name = "unused_deps_error_config",
+    package_specs = [":ext_package_spec"],
+    unused_deps = "error",
+)
+
+default_java_toolchain(
+    name = "java_toolchain",
+    package_configuration = [":unused_deps_error_config"],
+)
+
+java_library(name = "ext_lib", srcs = ["Ext.java"], deps = [":ext_dep"])
+java_library(name = "ext_dep", srcs = ["ExtDep.java"])
+EOF
+
+  echo "public class Ext {}" > ext/Ext.java
+  echo "public class ExtDep {}" > ext/ExtDep.java
+
+  cat >> MODULE.bazel <<EOF
+bazel_dep(name = "ext")
+local_path_override(
+    module_name = "ext",
+    path = "ext",
+)
+EOF
+
+  # Build the target in the external repo. Even though ext_dep is unused,
+  # it should compile successfully because unused deps checking is disabled for non-main repos.
+  bazel build @ext//:ext_lib \
+    --extra_toolchains=@ext//:java_toolchain_definition \
+    >& $TEST_log || fail "build of external target failed, but expected to succeed (unused check disabled for external repos)"
 }
 
 run_suite "Java integration tests"
