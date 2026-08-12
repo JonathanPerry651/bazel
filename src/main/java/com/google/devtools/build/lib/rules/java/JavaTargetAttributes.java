@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.devtools.build.lib.actions.Artifact;
+import com.google.devtools.build.lib.actions.CommandLine;
 import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
@@ -73,11 +74,14 @@ public class JavaTargetAttributes {
     private final ImmutableList.Builder<Artifact> classPathResources = ImmutableList.builder();
 
     private final ImmutableSet.Builder<Artifact> additionalOutputs = ImmutableSet.builder();
+    private final ImmutableSet.Builder<Artifact> additionalInputs = ImmutableSet.builder();
 
     /** @see {@link #setStrictJavaDeps}. */
     private StrictDepsMode strictJavaDeps = StrictDepsMode.ERROR;
 
     private final NestedSetBuilder<Artifact> directJarsBuilder = NestedSetBuilder.naiveLinkOrder();
+    private final ImmutableList.Builder<CommandLine> extraCommandLineArgs =
+        ImmutableList.builder();
     private final NestedSetBuilder<Artifact> headerCompilationDirectJarsBuilder =
         NestedSetBuilder.naiveLinkOrder();
     private final NestedSetBuilder<Artifact> compileTimeDependencyArtifacts =
@@ -277,6 +281,20 @@ public class JavaTargetAttributes {
       return this;
     }
 
+    @CanIgnoreReturnValue
+    public Builder addAdditionalInputs(Iterable<Artifact> additionalInputs) {
+      Preconditions.checkArgument(!built);
+      this.additionalInputs.addAll(additionalInputs);
+      return this;
+    }
+
+    @CanIgnoreReturnValue
+    public Builder addExtraCommandLineArgs(Iterable<CommandLine> commandLines) {
+      Preconditions.checkArgument(!built);
+      this.extraCommandLineArgs.addAll(commandLines);
+      return this;
+    }
+
     public JavaTargetAttributes build() {
       built = true;
       NestedSet<Artifact> directJars = directJarsBuilder.build();
@@ -302,13 +320,15 @@ public class JavaTargetAttributes {
           ImmutableList.copyOf(sourceJars),
           classPathResources.build(),
           additionalOutputs.build(),
+          additionalInputs.build(),
           directJars,
           /* headerCompilationDirectJars= */ headerCompilationDirectJars,
           compileTimeDependencyArtifacts.build(),
           targetLabel,
           injectingRuleKind,
           excludedArtifacts.build(),
-          strictJavaDeps);
+          strictJavaDeps,
+          extraCommandLineArgs.build());
     }
 
     // TODO(bazel-team): delete the following method - users should use the built
@@ -345,6 +365,7 @@ public class JavaTargetAttributes {
   private final ImmutableList<Artifact> classPathResources;
 
   private final ImmutableSet<Artifact> additionalOutputs;
+  private final ImmutableSet<Artifact> additionalInputs;
 
   private final NestedSet<Artifact> directJars;
   private final NestedSet<Artifact> headerCompilationDirectJars;
@@ -354,6 +375,7 @@ public class JavaTargetAttributes {
 
   private final NestedSet<Artifact> excludedArtifacts;
   private final StrictDepsMode strictJavaDeps;
+  private final ImmutableList<CommandLine> extraCommandLineArgs;
 
   /** Constructor of JavaTargetAttributes. */
   private JavaTargetAttributes(
@@ -370,13 +392,15 @@ public class JavaTargetAttributes {
       ImmutableList<Artifact> sourceJars,
       ImmutableList<Artifact> classPathResources,
       ImmutableSet<Artifact> additionalOutputs,
+      ImmutableSet<Artifact> additionalInputs,
       NestedSet<Artifact> directJars,
       NestedSet<Artifact> headerCompilationDirectJars,
       NestedSet<Artifact> compileTimeDependencyArtifacts,
       Label targetLabel,
       @Nullable String injectingRuleKind,
       NestedSet<Artifact> excludedArtifacts,
-      StrictDepsMode strictJavaDeps) {
+      StrictDepsMode strictJavaDeps,
+      ImmutableList<CommandLine> extraCommandLineArgs) {
     this.sourceFiles = sourceFiles;
     this.runtimeClassPath = runtimeClassPath;
     this.directJars = directJars;
@@ -392,11 +416,13 @@ public class JavaTargetAttributes {
     this.sourceJars = sourceJars;
     this.classPathResources = classPathResources;
     this.additionalOutputs = additionalOutputs;
+    this.additionalInputs = additionalInputs;
     this.compileTimeDependencyArtifacts = compileTimeDependencyArtifacts;
     this.targetLabel = targetLabel;
     this.injectingRuleKind = injectingRuleKind;
     this.excludedArtifacts = excludedArtifacts;
     this.strictJavaDeps = strictJavaDeps;
+    this.extraCommandLineArgs = extraCommandLineArgs;
   }
 
   JavaTargetAttributes appendAdditionalTransitiveClassPathEntries(
@@ -419,13 +445,19 @@ public class JavaTargetAttributes {
         sourceJars,
         classPathResources,
         additionalOutputs,
+        additionalInputs,
         directJars,
         /* headerCompilationDirectJars= */ headerCompilationDirectJars,
         compileTimeDependencyArtifacts,
         targetLabel,
         injectingRuleKind,
         excludedArtifacts,
-        strictJavaDeps);
+        strictJavaDeps,
+        extraCommandLineArgs);
+  }
+
+  public ImmutableList<CommandLine> getExtraCommandLineArgs() {
+    return extraCommandLineArgs;
   }
 
   public NestedSet<Artifact> getDirectJars() {
