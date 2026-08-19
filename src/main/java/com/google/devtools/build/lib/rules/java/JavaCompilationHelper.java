@@ -296,6 +296,7 @@ public final class JavaCompilationHelper {
     builder.setStrictJavaDeps(attributes.getStrictJavaDeps());
     builder.setFixDepsTool(getJavaConfiguration().getFixDepsTool());
     builder.setCompileTimeDependencyArtifacts(attributes.getCompileTimeDependencyArtifacts());
+    builder.setExtraCommandLineArgs(attributes.getExtraCommandLineArgs());
     builder.setTargetLabel(
         attributes.getTargetLabel() == null ? label : attributes.getTargetLabel());
     builder.setInjectingRuleKind(attributes.getInjectingRuleKind());
