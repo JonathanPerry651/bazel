@@ -289,7 +289,7 @@ function test_path_stripping_remote_action_cache() {
     --experimental_output_paths=strip \
     --remote_executor=grpc://localhost:${worker_port} \
     //src/main/java/com/example:Main &> $TEST_log || fail "build failed unexpectedly"
-  expect_log '5 remote'
+  expect_log '6 remote'
 
   bazel shutdown
 
