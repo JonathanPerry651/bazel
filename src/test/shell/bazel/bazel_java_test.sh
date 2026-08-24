@@ -2663,7 +2663,7 @@ EOF
 load("@rules_java//java:defs.bzl", "java_package_configuration")
 java_package_configuration(
     name = "test_config_query",
-    package_specs = [":spec_query"],
+    packages = [":spec_query"],
     unused_deps = "error",
 )
 package_group(
@@ -2677,6 +2677,9 @@ EOF
     return 0
   fi
 
+  local jb_deploy_jar=$(rlocation io_bazel/src/java_tools/buildjar/JavaBuilder_deploy.jar)
+  cp "${jb_deploy_jar}" pkg/JavaBuilder_deploy.jar
+
   # Write the common toolchain definition for main repo targets
   cat << 'EOF' > pkg/BUILD
 load("@rules_java//toolchains:default_java_toolchain.bzl", "default_java_toolchain")
@@ -2689,12 +2692,15 @@ package_group(
 
 java_package_configuration(
     name = "unused_deps_error_config",
-    package_specs = [":my_package_spec"],
+    packages = [":my_package_spec"],
     unused_deps = "error",
 )
 
 default_java_toolchain(
     name = "java_toolchain",
+    source_version = "17",
+    target_version = "17",
+    javabuilder = ":JavaBuilder_deploy.jar",
     package_configuration = [":unused_deps_error_config"],
 )
 EOF
@@ -2711,16 +2717,18 @@ EOF
   echo "public class B {}" > pkg/B.java
 
   bazel build //pkg:simple_unused \
+    --java_language_version=17 \
     --extra_toolchains=//pkg:java_toolchain_definition \
     >& $TEST_log && fail "build succeeded, but expected it to fail due to unused dependency (Simple Unused)"
 
-  expect_log "Target '//pkg:b' is declared as a direct dependency of '//pkg:simple_unused' but is unused"
+  expect_log "Target '.*//pkg:b' is declared as a direct dependency of '//pkg:simple_unused' but is unused"
 
   # -------------------------------------------------------------
   # Scenario 2: Simple Used (Success)
   # -------------------------------------------------------------
   echo "public class SimpleUnused { B b; }" > pkg/SimpleUnused.java
   bazel build //pkg:simple_unused \
+    --java_language_version=17 \
     --extra_toolchains=//pkg:java_toolchain_definition \
     >& $TEST_log || fail "build failed, but expected Simple Used to succeed"
 
@@ -2736,10 +2744,11 @@ EOF
   echo "public class C {}" > pkg/C.java
 
   bazel build //pkg:exported_only \
+    --java_language_version=17 \
     --extra_toolchains=//pkg:java_toolchain_definition \
     >& $TEST_log && fail "build succeeded, but expected it to fail due to unused dependency (Exported Only)"
 
-  expect_log "Target '//pkg:exports_c' is declared as a direct dependency of '//pkg:exported_only' but is unused"
+  expect_log "Target '.*//pkg:exports_c' is declared as a direct dependency of '//pkg:exported_only' but is unused"
 
   # -------------------------------------------------------------
   # Scenario 4: Exported & Direct Used (Success)
@@ -2753,6 +2762,7 @@ EOF
   echo "public class ExportedAndDirect { B2 b; C c; }" > pkg/ExportedAndDirect.java
 
   bazel build //pkg:exported_and_direct \
+    --java_language_version=17 \
     --extra_toolchains=//pkg:java_toolchain_definition \
     >& $TEST_log || fail "build failed, but expected Exported & Direct Used to succeed"
 
@@ -2761,16 +2771,18 @@ EOF
   # -------------------------------------------------------------
   cat << 'EOF' >> pkg/BUILD
 java_library(name = "indirect_used", srcs = ["IndirectUsed.java"], deps = [":dep_no_exports"])
-java_library(name = "dep_no_exports", deps = [":c"])
+java_library(name = "dep_no_exports", srcs = ["DepNoExports.java"], deps = [":c"])
 EOF
+  echo "public class DepNoExports { C c; }" > pkg/DepNoExports.java
   echo "public class IndirectUsed { C c; }" > pkg/IndirectUsed.java
 
   bazel build //pkg:indirect_used \
+    --java_language_version=17 \
     --extra_toolchains=//pkg:java_toolchain_definition \
     >& $TEST_log && fail "build succeeded, but expected it to fail due to strict deps violation"
 
   # Check that it's a strict deps error, not an unused deps error
-  expect_log "is not visible from target '//pkg:indirect_used'"
+  expect_log "Using type C from an indirect dependency"
 
   # -------------------------------------------------------------
   # Scenario 6: Non-Main Repository Target (Success)
@@ -2789,6 +2801,8 @@ local_path_override(
 EOF
   fi
 
+  cp "${jb_deploy_jar}" ext/JavaBuilder_deploy.jar
+
   cat > ext/BUILD <<EOF
 load("@rules_java//java:java_library.bzl", "java_library")
 load("@rules_java//toolchains:default_java_toolchain.bzl", "default_java_toolchain")
@@ -2801,12 +2815,15 @@ package_group(
 
 java_package_configuration(
     name = "unused_deps_error_config",
-    package_specs = [":ext_package_spec"],
+    packages = [":ext_package_spec"],
     unused_deps = "error",
 )
 
 default_java_toolchain(
     name = "java_toolchain",
+    source_version = "17",
+    target_version = "17",
+    javabuilder = ":JavaBuilder_deploy.jar",
     package_configuration = [":unused_deps_error_config"],
 )
 
@@ -2828,8 +2845,26 @@ EOF
   # Build the target in the external repo. Even though ext_dep is unused,
   # it should compile successfully because unused deps checking is disabled for non-main repos.
   bazel build @ext//:ext_lib \
+    --java_language_version=17 \
     --extra_toolchains=@ext//:java_toolchain_definition \
     >& $TEST_log || fail "build of external target failed, but expected to succeed (unused check disabled for external repos)"
+
+  # -------------------------------------------------------------
+  # Scenario 7: Chained Used Dependencies (compile_jar integrity)
+  # -------------------------------------------------------------
+  cat << 'EOF' >> pkg/BUILD
+java_library(name = "chain_bottom", srcs = ["ChainBottom.java"])
+java_library(name = "chain_middle", srcs = ["ChainMiddle.java"], deps = [":chain_bottom"])
+java_library(name = "chain_top", srcs = ["ChainTop.java"], deps = [":chain_middle"])
+EOF
+  echo "public class ChainBottom {}" > pkg/ChainBottom.java
+  echo "public class ChainMiddle { ChainBottom b; }" > pkg/ChainMiddle.java
+  echo "public class ChainTop { ChainMiddle m; }" > pkg/ChainTop.java
+
+  bazel build //pkg:chain_top \
+    --java_language_version=17 \
+    --extra_toolchains=//pkg:java_toolchain_definition \
+    >& $TEST_log || fail "build failed, but expected Chained Used Dependencies to succeed"
 }
 
 run_suite "Java integration tests"
